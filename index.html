@@ -3,100 +3,102 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QFU Messaging • v2.0</title>
+<title>QFU Messaging • v2.2 (single-file)</title>
+<meta name="theme-color" content="#0b57d0">
 <style>
   :root { --pad:14px; }
+  html,body{background:#f6f7fb}
   body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:16px;max-width:980px}
   h1{margin:0 0 12px}
   .card{border:1px solid #ddd;border-radius:12px;padding:var(--pad);margin:12px 0;background:#fff}
   label{display:block;font-weight:600;margin:10px 0 6px}
-  input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px}
+  input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;background:#fff}
   .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
   .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
   button,a.btn{border:1px solid #ccc;border-radius:999px;padding:10px 14px;text-decoration:none;cursor:pointer;background:#fff}
-  .pill{font-size:12px;background:#f4f4f4;border-radius:999px;padding:4px 8px;margin-left:6px}
+  .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
   #pos{opacity:.7;margin-top:8px}
   .tiny{font-size:12px;opacity:.8}
   .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px}
+  pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
   table{border-collapse:collapse;width:100%} th,td{border:1px solid #eee;padding:8px;text-align:left}
   th{background:#fafafa}
 </style>
 </head>
 <body>
-<h1>QFU Messaging <span class="pill">v2.0</span></h1>
+<h1>QFU Messaging <span class="pill">v2.2</span></h1>
 
-<!-- Ingest -->
 <div class="card">
-  <label>Paste customer blocks (exactly as copied; trailing lines like <em>-</em>, dates, “Appointed”, <em>LO-…</em> are fine):</label>
-  <textarea id="blocks" rows="10" class="mono" placeholder="5043… - Name - BHxx xxx - (C3_01_155)
+  <label>Paste records (block format exactly as you send: header + 12 lines):</label>
+  <textarea id="blocks" rows="12" class="mono" placeholder="Example block:
+
+50430409 - Kirsty Rolt - BH23 4LH - (C3_01_155)
 £150.00
 22HSP6
 18/11/2025
-077xx xxxxxx
-+4477xx xxxxxx
-email@example.com
-https://… (long quote link)
+07714869715
++447714869715
+kirstyrolt@yahoo.co.uk
+https://...
+HSA followed up
+20/07/2022
+Appointed
+November Capacity Offer
+
+50433921 - Marian Barbu - BH1 1HX - (C3_01_155)
+£125.00
+22WSC4
+18/11/2025
+07597604176
+07597604176
+marian.barbu33@yahoo.ro
+https://...
 -
 20/07/2022
 Appointed
-LO-xxxxx
-
-5043… - Next Name - … (next record)…"></textarea>
+Winter Saver"></textarea>
   <div class="btns">
-    <button id="parseBtn" onclick="parseAll()">Parse</button>
-    <button onclick="example()">Load Example</button>
+    <button onclick="parseAll()">Parse</button>
+    <button onclick="loadExample()">Load Example</button>
   </div>
-  <div class="tiny">Tip: You can paste many records at once. Parser splits by the header line: <code>LEAD - Name - POSTCODE - (Product)</code>.</div>
+  <div class="tiny">Parser splits by header lines like <code>LEAD - Name - POSTCODE - (Area)</code> and maps the next 12 non-empty lines in order.</div>
 </div>
 
-<!-- Pushcut/Proxy configuration -->
-<div class="card">
-  <strong>Pushcut / Proxy (for work email send)</strong>
-  <div class="row">
-    <div>
-      <label>Pushcut Notification URL (optional)</label>
-      <input id="pushcutUrl" placeholder="https://api.pushcut.io/.../notifications/Send%20work%20email" oninput="saveCfg()" />
-      <div class="tiny">For direct GET fallback (&content=...), or if your proxy forwards to Pushcut.</div>
-    </div>
-    <div>
-      <label>Proxy URL (recommended for CORS)</label>
-      <input id="proxyUrl" placeholder="https://qfu-email.your.workers.dev/send" oninput="saveCfg()" />
-      <div class="tiny">Set this to your Cloudflare Worker endpoint that <em>POSTs</em> JSON to Pushcut. If empty, we’ll try direct Pushcut GET fallback.</div>
-    </div>
-  </div>
-</div>
-
-<!-- Work area -->
 <div id="work" class="card" style="display:none">
   <div class="row">
-    <div><label>Lead ID</label><input id="lead"></div>
+    <div><label>Lead</label><input id="lead"></div>
     <div><label>Name</label><input id="name"></div>
     <div><label>Postcode</label><input id="pc"></div>
-    <div><label>Product</label><input id="prod"></div>
+    <div><label>Area</label><input id="area"></div>
   </div>
   <div class="row">
-    <div><label>Offer Code</label><input id="offer"></div>
-    <div><label>Amount</label><input id="amount"></div>
-    <div><label>Date</label><input id="date" inputmode="numeric" placeholder="DD/MM/YYYY"></div>
+    <div><label>Offer Amount</label><input id="amount" placeholder="£150.00"></div>
+    <div><label>Offer Code</label><input id="offer" placeholder="22HSP6"></div>
+    <div><label>Offer Ends</label><input id="offerEnds" placeholder="DD/MM/YYYY"></div>
   </div>
   <div class="row">
-    <div><label>Phone 1</label><input id="phone1" inputmode="tel"></div>
-    <div><label>Phone 2</label><input id="phone2" inputmode="tel"></div>
+    <div><label>Mobile</label><input id="phone1" inputmode="tel"></div>
+    <div><label>Other Number</label><input id="phone2" inputmode="tel"></div>
     <div><label>Email</label><input id="email" type="email"></div>
   </div>
-  <label>Quote Link</label><input id="link">
+  <label>Quote Link</label><input id="link" placeholder="https://…">
+  <div class="row">
+    <div><label>HSA Followed Up</label><input id="hsa"></div>
+    <div><label>Offer Created</label><input id="created" placeholder="DD/MM/YYYY"></div>
+    <div><label>Stage</label><input id="stage"></div>
+    <div><label>Offer Name</label><input id="offerName"></div>
+  </div>
 
   <div class="row">
     <div>
       <label>SMS Template</label>
-      <textarea id="smsTpl" rows="10" class="mono">Good morning it’s {{name}} from British Gas.
+      <textarea id="smsTpl" rows="11" class="mono">Good morning it’s Martin Bibb from British Gas.
 
-I recently came and visited you and provided you with a new boiler quotation. I’m just following up some of my quotations and I’ve noticed that the office has offered you an extra {{amount}} discount due to spare engineer installation capacity at the moment.
+I recently visited and provided you with a boiler quotation. I’m following up as the office has offered you an extra {{amount}} discount (code {{offer}}) due to spare engineer capacity.
 
-I just wanted to check you have seen the email with this discount attached to it. If this is something you are interested in accepting then please follow the email with the discount code {{offer}}.
+Offer ends: {{offerEnds}}.
 
-If you’re interested in accepting the extra discount and haven’t seen the email, please let me know and I’ll guide you through the next stages.
+If you’ve seen the email with this discount, great — if not, let me know and I’ll guide you through the next steps.
 
 Quote link: {{link}}
 
@@ -104,16 +106,17 @@ Have a great day.</textarea>
     </div>
     <div>
       <label>Email Subject Template</label>
-      <input id="subjTpl" value="Your boiler quote & discount ({{offer}} / {{amount}})">
+      <input id="subjTpl" value="Your boiler quote & discount ({{offer}} / {{amount}}) – ends {{offerEnds}}">
       <label>Email Body Template</label>
-      <textarea id="bodyTpl" rows="10" class="mono">Hello {{name}},
+      <textarea id="bodyTpl" rows="12" class="mono">Hello {{name}},
 
-I recently visited to provide your boiler quotation. We currently have spare engineer installation capacity, so the office has authorised an extra discount for you.
+I recently visited to provide your boiler quotation for {{area}} ({{pc}}). We currently have spare engineer capacity, so the office has authorised an extra discount for you.
 
 • Offer code: {{offer}} ({{amount}})
+• Offer ends: {{offerEnds}}
 • Quote link: {{link}}
-• Lead: {{lead}} • Postcode: {{pc}} • Product: {{prod}}
-• Proposed date: {{date}}
+• Lead: {{lead}} • Area: {{area}} • Stage: {{stage}}
+• Offer created: {{created}} • Offer name: {{offerName}}
 
 If you can’t find the discount email, reply and I’ll guide you through the next steps.
 
@@ -140,7 +143,6 @@ Martin</textarea>
   <div class="btns">
     <button onclick="sendSMS()">Send SMS</button>
     <button onclick="openMail()">Open Mail</button>
-    <button onclick="sendViaPushcut()">Send Email via Pushcut</button>
     <button onclick="copyBoth()">Copy both messages</button>
     <button onclick="prev()">◀︎ Prev</button>
     <button onclick="next()">Next ▶︎</button>
@@ -149,50 +151,33 @@ Martin</textarea>
   <div id="pos"></div>
 </div>
 
-<!-- Batch preview -->
 <div id="batch" class="card" style="display:none">
   <h3>Batch Preview (all records)</h3>
   <div style="overflow:auto;max-height:420px">
     <table id="batchTable"><thead>
-      <tr><th>#</th><th>Lead</th><th>Name</th><th>Email</th><th>Offer</th><th>Amount</th><th>Link</th></tr>
+      <tr>
+        <th>#</th><th>Lead</th><th>Name</th><th>PC</th><th>Area</th>
+        <th>£</th><th>Code</th><th>Ends</th><th>Email</th><th>Mobile</th><th>Link</th>
+      </tr>
     </thead><tbody></tbody></table>
   </div>
 </div>
 
 <script>
-// ===================== Helpers =====================
-const TEMPLATE_FIELDS = ['smsTpl','subjTpl','bodyTpl'];
-
+/* ===== v2.2 single-file ===== */
 function _norm(s){ return (s||'').replace(/\r/g,'').replace(/\u00A0/g,' ').trim(); }
-function _lines(s){ return (s||'').replace(/\r/g,'').split('\n').map(v=>v.trim()); }
-function saveCfg(){
-  localStorage.setItem('qfu_pushcut', document.getElementById('pushcutUrl').value.trim());
-  localStorage.setItem('qfu_proxy', document.getElementById('proxyUrl').value.trim());
-}
-function loadCfg(){
-  document.getElementById('pushcutUrl').value = localStorage.getItem('qfu_pushcut')||'';
-  document.getElementById('proxyUrl').value    = localStorage.getItem('qfu_proxy')||'';
-}
-function saveTemplateField(id){
-  const el = document.getElementById(id);
-  if(!el) return;
-  localStorage.setItem(`qfu_tpl_${id}`, el.value);
-}
-function loadTemplates(){
-  TEMPLATE_FIELDS.forEach(id => {
-    const stored = localStorage.getItem(`qfu_tpl_${id}`);
-    if(stored !== null){
-      const el = document.getElementById(id);
-      if(el) el.value = stored;
-    }
-  });
-}
+function _lines(s){ return (s||'').replace(/\r/g,'').split('\n'); }
 
-// ===================== Global state =====================
+const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const moneyRe = /(£\s?\d[\d,]*\.?\d{0,2})/i;
+const dateRe  = /\b\d{2}\/\d{2}\/\d{4}\b/;
+const urlRe   = /(https?:\/\/\S+)/i;
+// Mobiles: 07… / +44 7… with optional spaces; normalize to +44…
+const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
+
 let items = [], idx = 0;
 
-// ===================== Example =====================
-function example(){
+function loadExample(){
   document.getElementById('blocks').value =
 `50430409 - Kirsty Rolt - BH23 4LH - (C3_01_155)
 £150.00
@@ -202,11 +187,10 @@ function example(){
 +447714869715
 kirstyrolt@yahoo.co.uk
 https://example.com/lead/aaa
-
--
+HSA followed up
 20/07/2022
 Appointed
-LO-526459
+November Capacity Offer
 
 50433921 - Marian Barbu - BH1 1HX - (C3_01_155)
 £125.00
@@ -216,131 +200,129 @@ LO-526459
 07597604176
 marian.barbu33@yahoo.ro
 https://example.com/lead/bbb
-
-50413108 - Bonnie Stanley - BH24 3AS - (C3_01_155)
-£90.00
-22HSP6
-18/11/2025
-07760456266
-07760456266
-bonniemaestanley@googlemail.com
-https://example.com/lead/ccc`;
- loadCfg();
-  loadTemplates();
+-
+20/07/2022
+Appointed
+Winter Saver`;
 }
 
-// ===================== Parsing =====================
-// Split by header lines: "LEAD - Name - PC - (Product)"
 function parseAll(){
   const raw0 = document.getElementById('blocks').value || '';
-  if(!_norm(raw0)){ alert('Paste one or more customer blocks first.'); return; }
-
+  if(!_norm(raw0)){ alert('Paste data first.'); return; }
   const raw = raw0.replace(/\r/g,'').replace(/\u00A0/g,' ');
-  const lines = raw.split('\n');
 
-  // Header: "LEAD - Name - POSTCODE - (Product)"; name may contain hyphens/spaces
+  // Split by HEADER lines: "LEAD - Name - POSTCODE - (Area)"
+  const lines = _lines(raw);
   const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\(([^)]+)\)\s*$/i;
-
-  // Slice from each header line to the next header line
   const starts = [];
-  for (let i=0;i<lines.length;i++){ if(headerRe.test(lines[i])) starts.push(i); }
-
-  let blocks = [];
-  if(starts.length){
-    for(let j=0;j<starts.length;j++){
-      const start = starts[j];
-      const end   = (j<starts.length-1) ? starts[j+1] : lines.length;
-      const chunk = lines.slice(start,end).join('\n').trim();
-      if(chunk) blocks.push(chunk);
-    }
-  } else {
-    // Fallback: blank-line split
-    blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
-    if(!blocks.length) blocks = [raw.trim()];
+  for(let i=0;i<lines.length;i++){
+    if(headerRe.test(lines[i])) starts.push(i);
+  }
+  if(!starts.length){
+    alert('No header lines found. Make sure each record starts like "5043… - Name - BHxx xxx - (Area)".');
+    return;
+  }
+  const blocks = [];
+  for(let j=0;j<starts.length;j++){
+    const start = starts[j];
+    const end = (j<starts.length-1) ? starts[j+1] : lines.length;
+    const chunk = lines.slice(start,end).join('\n').trim();
+    if(chunk) blocks.push(chunk);
   }
 
-  items = blocks.map(parseBlockSmart).filter(d => d && (d.lead || d.email || d.link));
-  if(!items.length){ alert('Could not parse any valid blocks.'); return; }
+  items = blocks.map(parseRecordStrict).filter(x=>x && (x.lead || x.email || x.link));
+  if(!items.length){ alert('Could not parse any records.'); return; }
 
   idx = 0;
   document.getElementById('work').style.display = 'block';
   loadRecord();
-  buildBatchTable?.();
+  buildBatchTable();
 }
 
-function parseBlockSmart(text){
-  const lines = _lines(text).filter(Boolean);
-  const joined = _norm(text);
+// Parse one block strictly by your 13-line pattern (1 header + 12 lines)
+function parseRecordStrict(text){
+  // Collapse multiple blank lines; keep order
+  const ls = _lines(text).map(s=>s.trim()).filter(s=>s !== '');
+  if(!ls.length) return null;
 
-  // ----- 1) Header (anywhere in chunk)
-  let lead='', name='', pc='', prod='';
-  for(const ln of lines){
-    const m = ln.match(/^\s*(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)\s*$/i);
-    if(m){ lead=_norm(m[1]); name=_norm(m[2]); pc=_norm(m[3]); prod=_norm(m[4]); break; }
+  // Header anywhere in ls
+  let lead='', name='', pc='', area='';
+  let headerIndex = -1;
+  for(let i=0; i<ls.length; i++){
+    const m = ls[i].match(/^\s*(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)\s*$/i);
+    if(m){ lead=m[1].trim(); name=m[2].trim(); pc=m[3].trim(); area=m[4].trim(); headerIndex=i; break; }
+  }
+  if(headerIndex === -1) return null;
+
+  // Take next up-to-12 non-empty lines after the header to map columns 2..13
+  const tail = ls.slice(headerIndex+1);
+  const cols = tail.slice(0, 12);
+  // Fill with empty strings if fewer than 12 provided
+  while(cols.length < 12) cols.push('');
+
+  // Map columns
+  // 2 amount, 3 offer code, 4 offer ends, 5 mobile, 6 other number,
+  // 7 email, 8 link, 9 hsa, 10 created, 11 stage, 12 offer name
+  let amount = (cols[0].match(moneyRe)||[''])[0] || cols[0];
+  let offer  = (cols[1].match(/^[A-Z0-9]{5,12}$/i)||[])[0] ? cols[1].toUpperCase() : cols[1].toUpperCase();
+  let offerEnds = (cols[2].match(dateRe)||[''])[0] || cols[2];
+
+  const normalizeMobile = (s)=>{
+    const m = (s||'').toString().match(mobileRe);
+    if(!m) return '';
+    return m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44');
+  };
+
+  const phone1 = normalizeMobile(cols[3]);
+  const phone2 = normalizeMobile(cols[4]);
+
+  const email  = ((cols[5].match(new RegExp(emailRe,'i')))||[''])[0] || '';
+  const link   = ((cols[6].match(urlRe))||[''])[0] || '';
+
+  const hsa    = cols[7] || '';
+  const created= (cols[8].match(dateRe)||[''])[0] || cols[8];
+  const stage  = cols[9] || '';
+  const offerName = cols[10] || '';
+
+  // If amount/offer/offerEnds were blank because the user pasted with extra
+  // lines earlier, fall back to scanning the whole block in order for safety.
+  if(!amount){
+    const m = text.match(moneyRe); if(m) amount = m[1];
+  }
+  if(!offer || !/[A-Z]/i.test(offer) || !/\d/.test(offer)){
+    const m = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/i); if(m) offer = m[0].toUpperCase();
+  }
+  if(!offerEnds){
+    const m = text.match(dateRe); if(m) offerEnds = m[0];
   }
 
-  // ----- 2) Scan line-by-line in order for the rest
-  let amount='', offer='', date='';
-  let link='', email='';
-  const emailMatches = [];
-  const urlRe = /(https?:\/\/\S+)/i;
-  const moneyRe = /(£\s?\d[\d,]*\.?\d{0,2})/i;
-  const offerLineRe = /^[A-Z0-9]{5,12}$/i; // single token line like 22HSP6 / 22WSC4
-  const dateRe = /\b\d{2}\/\d{2}\/\d{4}\b/;
+  // Email/link fallback (scan block)
+  const ems = Array.from(text.matchAll(new RegExp(emailRe,'ig'))).map(m=>m[0]);
+  const url = Array.from(text.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
+  const emailFinal = email || (ems.length ? ems[ems.length-1].toLowerCase() : '');
+  const linkFinal  = link  || (url.length ? url[0] : ''); // first link in block
 
-  for (const ln of lines){
-    if (!amount){
-      const m = ln.match(moneyRe);
-      if(m) amount = m[1];
-    }
-    if (!offer && offerLineRe.test(ln) && /[A-Z]/i.test(ln) && /\d/.test(ln)){
-      offer = ln.toUpperCase();
-    }
-    if (!date){
-      const m = ln.match(dateRe);
-      if(m) date = m[0];
-    }
-    // collect any emails we see
-    const ems = ln.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig);
-    if(ems) emailMatches.push(...ems);
-    // first URL we encounter (quote link is before trailing audit lines)
-    if (!link){
-      const u = ln.match(urlRe);
-      if(u) link = u[1].replace(/[).,;]+$/,'');
-    }
-  }
-  if (!email && emailMatches.length) email = emailMatches[emailMatches.length-1].toLowerCase();
-
-  // ----- 3) Mobiles (07… / +447… with spaces); ignore '-' placeholders
-  const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
-  const phoneMatches = Array.from(joined.matchAll(mobileRe))
-    .map(m => m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44'));
-  const phone1 = phoneMatches[0] || '';
-  const phone2 = phoneMatches[1] || '';
-
-  return { lead, name, pc, prod, amount, offer, date, phone1, phone2, email, link };
+  return {
+    lead, name, pc, area,
+    amount, offer, offerEnds,
+    phone1, phone2,
+    email: emailFinal,
+    link: linkFinal,
+    hsa, created, stage, offerName
+  };
 }
 
-function findOffer(text){
-  const L = _lines(text).filter(Boolean);
-  for(let k=1; k<Math.min(L.length,12); k++){
-    const m = L[k].match(/^[A-Z0-9]{5,12}$/i);
-    if(m && /[A-Z]/i.test(m[0]) && /\d/.test(m[0])) return m[0].toUpperCase();
-  }
-  const all = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/ig) || [];
-  const pick = all.find(s => /[A-Z]/i.test(s) && /\d/.test(s));
-  return (pick || '').toUpperCase();
-}
-
-// ===================== UI/Preview =====================
+/* ===== UI / Templates ===== */
 function setVal(id,v){ document.getElementById(id).value = v ?? ''; }
 function getVal(id){ return document.getElementById(id).value.trim(); }
+
 function current(){
   return {
-    lead:getVal('lead'), name:getVal('name'), pc:getVal('pc'), prod:getVal('prod'),
-    amount:getVal('amount'), offer:getVal('offer'), date:getVal('date'),
-    phone: getVal('phone1') || getVal('phone2'),
-    email:getVal('email'), link:getVal('link')
+    lead:getVal('lead'), name:getVal('name'), pc:getVal('pc'), area:getVal('area'),
+    amount:getVal('amount'), offer:getVal('offer'), offerEnds:getVal('offerEnds'),
+    phone:getVal('phone1') || getVal('phone2'),
+    email:getVal('email'), link:getVal('link'),
+    hsa:getVal('hsa'), created:getVal('created'), stage:getVal('stage'), offerName:getVal('offerName')
   };
 }
 function fillTpl(tpl, rec){
@@ -348,12 +330,15 @@ function fillTpl(tpl, rec){
     .replace(/{{\s*lead\s*}}/gi, rec.lead||'')
     .replace(/{{\s*name\s*}}/gi, rec.name||'')
     .replace(/{{\s*pc\s*}}/gi, rec.pc||'')
-    .replace(/{{\s*prod\s*}}/gi, rec.prod||'')
+    .replace(/{{\s*area\s*}}/gi, rec.area||'')
     .replace(/{{\s*amount\s*}}/gi, rec.amount||'')
     .replace(/{{\s*offer\s*}}/gi, rec.offer||'')
-    .replace(/{{\s*date\s*}}/gi, rec.date||'')
+    .replace(/{{\s*offerEnds\s*}}/gi, rec.offerEnds||'')
     .replace(/{{\s*link\s*}}/gi, rec.link||'')
-    .replace(/{{\s*email\s*}}/gi, rec.email||'');
+    .replace(/{{\s*email\s*}}/gi, rec.email||'')
+    .replace(/{{\s*stage\s*}}/gi, rec.stage||'')
+    .replace(/{{\s*offerName\s*}}/gi, rec.offerName||'')
+    .replace(/{{\s*created\s*}}/gi, rec.created||'');
 }
 function refreshPreview(){
   const rec = current();
@@ -363,14 +348,14 @@ function refreshPreview(){
   document.getElementById('smsPreview').textContent  = sms;
   document.getElementById('subjPreview').textContent = subj;
   document.getElementById('bodyPreview').textContent = body;
-  const pos = document.getElementById('pos');
-  if(pos) pos.textContent = items.length ? `Record ${idx+1} of ${items.length}` : '';
+  document.getElementById('pos').textContent = `Record ${idx+1} of ${items.length}`;
 }
 function loadRecord(){
   const d = items[idx];
-  setVal('lead', d.lead); setVal('name', d.name); setVal('pc', d.pc); setVal('prod', d.prod);
-  setVal('amount', d.amount); setVal('offer', d.offer); setVal('date', d.date);
-  setVal('phone1', d.phone1); setVal('phone2', d.phone2); setVal('email', d.email); setVal('link', d.link);
+  setVal('lead', d.lead); setVal('name', d.name); setVal('pc', d.pc); setVal('area', d.area);
+  setVal('amount', d.amount); setVal('offer', d.offer); setVal('offerEnds', d.offerEnds);
+  setVal('phone1', d.phone1||''); setVal('phone2', d.phone2||''); setVal('email', d.email); setVal('link', d.link);
+  setVal('hsa', d.hsa||''); setVal('created', d.created||''); setVal('stage', d.stage||''); setVal('offerName', d.offerName||'');
   refreshPreview();
 }
 function next(){ if(idx < items.length-1){ idx++; loadRecord(); } }
@@ -378,10 +363,14 @@ function prev(){ if(idx > 0){ idx--; loadRecord(); } }
 
 function buildBatchTable(){
   const tbody = document.querySelector('#batchTable tbody');
+  if(!tbody) return;
   tbody.innerHTML = '';
   items.forEach((d, i) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${i+1}</td><td>${d.lead||''}</td><td>${d.name||''}</td><td>${d.email||''}</td><td>${d.offer||''}</td><td>${d.amount||''}</td><td>${d.link?'<a href="'+d.link+'" target="_blank">link</a>':''}</td>`;
+    const phone = d.phone1 || d.phone2 || '';
+    tr.innerHTML = `<td>${i+1}</td><td>${d.lead||''}</td><td>${d.name||''}</td><td>${d.pc||''}</td><td>${d.area||''}</td>
+                    <td>${d.amount||''}</td><td>${d.offer||''}</td><td>${d.offerEnds||''}</td>
+                    <td>${d.email||''}</td><td>${phone}</td><td>${d.link?'<a href="'+d.link+'" target="_blank">link</a>':''}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -390,15 +379,13 @@ function previewAll(){
   document.getElementById('batch').style.display = 'block';
 }
 
-// ===================== Actions =====================
-function smsURLEncode(s){ return encodeURIComponent(s); } // preserve spaces/newlines (%20/%0A)
-
+/* ===== Actions ===== */
 function sendSMS(){
   const rec = current();
   const msg = fillTpl(getVal('smsTpl'), rec);
   const number = (rec.phone||'').replace(/\s+/g,'');
   const base = number ? `sms:${encodeURIComponent(number)}` : 'sms:';
-  location.href = `${base}&body=${smsURLEncode(msg)}`;
+  location.href = `${base}&body=${encodeURIComponent(msg)}`;
 }
 function openMail(){
   const rec = current();
@@ -406,34 +393,6 @@ function openMail(){
   const body = fillTpl(getVal('bodyTpl'), rec);
   const to   = rec.email ? encodeURIComponent(rec.email) : '';
   location.href = `mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-}
-async function sendViaPushcut(){
-  const proxy = getVal('proxyUrl');
-  const pushcut = getVal('pushcutUrl');
-  const rec = current();
-  const payload = {
-    to: rec.email,
-    subject: fillTpl(getVal('subjTpl'), rec),
-    body: fillTpl(getVal('bodyTpl'), rec),
-    meta: { lead:rec.lead, name:rec.name, pc:rec.pc, prod:rec.prod, offer:rec.offer, amount:rec.amount, link:rec.link, date:rec.date }
-  };
-
-  if(proxy){
-    try{
-      const res = await fetch(proxy, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      if(!res.ok) throw new Error('Proxy failed '+res.status);
-      alert('Sent to Pushcut via proxy 👍');
-      return;
-    }catch(e){ alert('Proxy error: '+e.message); }
-  }
-
-  if(pushcut){
-    // Fallback: open Pushcut URL with JSON in the query (GET). Works from Safari; not ideal for very long bodies.
-    const url = `${pushcut}${pushcut.includes('?')?'&':'?'}content=${encodeURIComponent(JSON.stringify(payload))}`;
-    window.open(url, '_blank');
-  } else {
-    alert('Set a Proxy URL or Pushcut URL first.');
-  }
 }
 async function copyBoth(){
   const rec = current();
@@ -444,23 +403,9 @@ async function copyBoth(){
   try{ await navigator.clipboard.writeText(txt); alert('Copied SMS + Email to clipboard.'); }catch{ alert('Copy failed (browser)'); }
 }
 
-// Live preview when user edits fields/templates
-['lead','name','pc','prod','amount','offer','date','phone1','phone2','email','link','smsTpl','subjTpl','bodyTpl']
-  .forEach(id => {
-    const el = document.getElementById(id);
-    if(!el) return;
-    el.addEventListener('input', () => {
-      if(TEMPLATE_FIELDS.includes(id)) saveTemplateField(id);
-      refreshPreview();
-    });
-  });
-
-// Restore saved config + templates on load
-document.addEventListener('DOMContentLoaded', () => {
-  loadCfg();
-  loadTemplates();
-  refreshPreview();
-});
+/* Live preview on edit */
+['lead','name','pc','area','amount','offer','offerEnds','phone1','phone2','email','link','hsa','created','stage','offerName','smsTpl','subjTpl','bodyTpl']
+  .forEach(id => document.getElementById(id).addEventListener('input', refreshPreview));
 </script>
 </body>
 </html>
