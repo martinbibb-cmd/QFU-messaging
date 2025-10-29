@@ -165,8 +165,14 @@ Martin</textarea>
 
 <script>
 /* ===== v2.2 single-file ===== */
-function _norm(s){ return (s||'').replace(/\r/g,'').replace(/\u00A0/g,' ').trim(); }
-function _lines(s){ return (s||'').replace(/\r/g,'').split('\n'); }
+function _pre(s){
+  return (s||'')
+    .replace(/\r/g,'')
+    .replace(/\u00A0/g,' ')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,'-');
+}
+function _norm(s){ return _pre(s).trim(); }
+function _lines(s){ return _pre(s).split('\n'); }
 
 const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const moneyRe = /(£\s?\d[\d,]*\.?\d{0,2})/i;
@@ -174,6 +180,7 @@ const dateRe  = /\b\d{2}\/\d{2}\/\d{4}\b/;
 const urlRe   = /(https?:\/\/\S+)/i;
 // Mobiles: 07… / +44 7… with optional spaces; normalize to +44…
 const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
+const headerRe = /^\s*(\d+)\s*[-–—]\s*(.+?)\s*[-–—]\s*([A-Z0-9 ]{3,8})\s*[-–—]\s*\(([^)]+)\)\s*$/i;
 
 let items = [], idx = 0;
 
@@ -209,11 +216,10 @@ Winter Saver`;
 function parseAll(){
   const raw0 = document.getElementById('blocks').value || '';
   if(!_norm(raw0)){ alert('Paste data first.'); return; }
-  const raw = raw0.replace(/\r/g,'').replace(/\u00A0/g,' ');
+  const raw = _pre(raw0);
 
   // Split by HEADER lines: "LEAD - Name - POSTCODE - (Area)"
   const lines = _lines(raw);
-  const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\(([^)]+)\)\s*$/i;
   const starts = [];
   for(let i=0;i<lines.length;i++){
     if(headerRe.test(lines[i])) starts.push(i);
@@ -241,53 +247,49 @@ function parseAll(){
 
 // Parse one block strictly by your 13-line pattern (1 header + 12 lines)
 function parseRecordStrict(text){
-  // Collapse multiple blank lines; keep order
-  const ls = _lines(text).map(s=>s.trim()).filter(s=>s !== '');
+  const ls = _lines(text).map(s=>s.trim());
   if(!ls.length) return null;
 
-  // Header anywhere in ls
-  let lead='', name='', pc='', area='';
-  let headerIndex = -1;
-  for(let i=0; i<ls.length; i++){
-    const m = ls[i].match(/^\s*(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)\s*$/i);
-    if(m){ lead=m[1].trim(); name=m[2].trim(); pc=m[3].trim(); area=m[4].trim(); headerIndex=i; break; }
-  }
+  const headerIndex = ls.findIndex(line => headerRe.test(line));
   if(headerIndex === -1) return null;
 
-  // Take next up-to-12 non-empty lines after the header to map columns 2..13
-  const tail = ls.slice(headerIndex+1);
-  const cols = tail.slice(0, 12);
-  // Fill with empty strings if fewer than 12 provided
-  while(cols.length < 12) cols.push('');
+  const headerMatch = ls[headerIndex].match(headerRe);
+  const lead = headerMatch[1].trim();
+  const name = headerMatch[2].trim();
+  const pc = headerMatch[3].trim();
+  const area = headerMatch[4].trim();
 
-  // Map columns
-  // 2 amount, 3 offer code, 4 offer ends, 5 mobile, 6 other number,
-  // 7 email, 8 link, 9 hsa, 10 created, 11 stage, 12 offer name
-  let amount = (cols[0].match(moneyRe)||[''])[0] || cols[0];
-  let offer  = (cols[1].match(/^[A-Z0-9]{5,12}$/i)||[])[0] ? cols[1].toUpperCase() : cols[1].toUpperCase();
-  let offerEnds = (cols[2].match(dateRe)||[''])[0] || cols[2];
+  const tail = ls.slice(headerIndex + 1).filter(x => x && x !== '-');
+  const at = (i) => tail[i] || '';
 
-  const normalizeMobile = (s)=>{
-    const m = (s||'').toString().match(mobileRe);
-    if(!m) return '';
-    return m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44');
-  };
+  const amountLine = at(0);
+  const offerLine = at(1);
+  const offerEndsLine = at(2);
 
-  const phone1 = normalizeMobile(cols[3]);
-  const phone2 = normalizeMobile(cols[4]);
+  const amountMatch = amountLine.match(moneyRe);
+  let amount = amountMatch ? (amountMatch[1] || amountMatch[0]) : amountLine;
+  let offer = offerLine;
+  if(/^[A-Z0-9]{5,12}$/i.test(offerLine)){ offer = offerLine.toUpperCase(); }
+  const offerEndsMatch = offerEndsLine.match(dateRe);
+  let offerEnds = offerEndsMatch ? offerEndsMatch[0] : offerEndsLine;
 
-  const email  = ((cols[5].match(new RegExp(emailRe,'i')))||[''])[0] || '';
-  const link   = ((cols[6].match(urlRe))||[''])[0] || '';
+  const phone1 = normaliseMobile(at(3));
+  const phone2 = normaliseMobile(at(4));
 
-  const hsa    = cols[7] || '';
-  const created= (cols[8].match(dateRe)||[''])[0] || cols[8];
-  const stage  = cols[9] || '';
-  const offerName = cols[10] || '';
+  const emailMatch = at(5).match(emailRe);
+  let email = emailMatch ? emailMatch[0] : '';
+  const linkMatch = at(6).match(urlRe);
+  let link = linkMatch ? linkMatch[0].replace(/[).,;]+$/,'') : '';
 
-  // If amount/offer/offerEnds were blank because the user pasted with extra
-  // lines earlier, fall back to scanning the whole block in order for safety.
+  const hsa = at(7);
+  const createdLine = at(8);
+  const createdMatch = createdLine.match(dateRe);
+  const created = createdMatch ? createdMatch[0] : createdLine;
+  const stage = at(9);
+  const offerName = at(10);
+
   if(!amount){
-    const m = text.match(moneyRe); if(m) amount = m[1];
+    const m = text.match(moneyRe); if(m) amount = m[1] || m[0];
   }
   if(!offer || !/[A-Z]/i.test(offer) || !/\d/.test(offer)){
     const m = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/i); if(m) offer = m[0].toUpperCase();
@@ -296,20 +298,53 @@ function parseRecordStrict(text){
     const m = text.match(dateRe); if(m) offerEnds = m[0];
   }
 
-  // Email/link fallback (scan block)
-  const ems = Array.from(text.matchAll(new RegExp(emailRe,'ig'))).map(m=>m[0]);
-  const url = Array.from(text.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
-  const emailFinal = email || (ems.length ? ems[ems.length-1].toLowerCase() : '');
-  const linkFinal  = link  || (url.length ? url[0] : ''); // first link in block
+  const tailEmail = findLastEmail(tail);
+  if(!email) email = tailEmail;
+  if(!email){
+    const ems = Array.from(text.matchAll(new RegExp(emailRe.source, 'ig'))).map(m=>m[0]);
+    if(ems.length) email = ems[ems.length-1];
+  }
+  email = (email || '').toLowerCase();
+
+  if(!link){
+    const tailUrl = findFirstUrl(tail);
+    if(tailUrl) link = tailUrl;
+  }
+  if(!link){
+    const url = Array.from(text.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
+    if(url.length) link = url[0];
+  }
 
   return {
     lead, name, pc, area,
     amount, offer, offerEnds,
     phone1, phone2,
-    email: emailFinal,
-    link: linkFinal,
+    email,
+    link,
     hsa, created, stage, offerName
   };
+
+  function normaliseMobile(s){
+    const raw = (s||'').toString().trim();
+    if(!raw || raw === '-') return '';
+    const m = raw.match(mobileRe);
+    if(!m) return '';
+    return m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44');
+  }
+  function findLastEmail(arr){
+    for(let i=arr.length-1; i>=0; i--){
+      const m = (arr[i]||'').match(emailRe);
+      if(m) return m[0];
+    }
+    return '';
+  }
+  function findFirstUrl(arr){
+    for(const ln of arr){
+      const m = (ln||'').match(/(https?:\/\/\S+)/i);
+      if(m) return m[1].replace(/[).,;]+$/,'');
+    }
+    return '';
+  }
 }
 
 /* ===== UI / Templates ===== */
