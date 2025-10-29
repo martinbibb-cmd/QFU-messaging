@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Follow-up Sender</title>
+<style>
+  :root { --pad:14px; }
+  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:16px;max-width:860px}
+  h1{margin:0 0 12px}
+  .card{border:1px solid #ddd;border-radius:12px;padding:var(--pad);margin:12px 0}
+  label{display:block;font-weight:600;margin:10px 0 6px}
+  input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px}
+  .row{display:flex;gap:12px} .row>div{flex:1}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  button,a.btn{border:1px solid #ccc;border-radius:999px;padding:10px 14px;text-decoration:none;cursor:pointer;background:#fff}
+  .pill{font-size:12px;background:#f4f4f4;border-radius:999px;padding:4px 8px;margin-left:6px}
+  #pos{opacity:.7;margin-top:8px}
+  .tiny{font-size:12px;opacity:.8}
+</style>
+</head>
+<body>
+<h1>Follow-up Sender <span class="pill">v1</span></h1>
+
+<div class="card">
+  <label>Paste customer blocks (exactly like your example). Use a blank line between customers.</label>
+  <textarea id="blocks" rows="10" placeholder="50423995 - Kevin Page - SP6 1RB - (C3_01_155)
+£150.00
+22HSP6
+18/11/2025
+07426629253
+07426629253
+minuiteman@hotmail.com
+https://..."></textarea>
+  <div class="btns">
+    <button onclick="parseAll()">Parse</button>
+    <button onclick="example()">Load Example</button>
+  </div>
+  <div class="tiny">Expected lines per customer:
+    1) <em>LeadID - Name - Postcode - (Product)</em><br>
+    2) Amount (e.g. £150.00) • 3) Offer Code • 4) Date (DD/MM/YYYY) •
+    5) Phone 1 • 6) Phone 2 • 7) Email • 8) Link
+  </div>
+</div>
+
+<div id="work" class="card" style="display:none">
+  <div class="row">
+    <div><label>Lead ID</label><input id="lead"></div>
+    <div><label>Name</label><input id="name"></div>
+  </div>
+  <div class="row">
+    <div><label>Postcode</label><input id="pc"></div>
+    <div><label>Product Code</label><input id="prod"></div>
+  </div>
+  <div class="row">
+    <div><label>Offer Code</label><input id="offer"></div>
+    <div><label>Amount</label><input id="amount"></div>
+  </div>
+  <div class="row">
+    <div><label>Date</label><input id="date" inputmode="numeric" placeholder="DD/MM/YYYY"></div>
+    <div><label>Email</label><input id="email" type="email"></div>
+  </div>
+  <div class="row">
+    <div><label>Phone 1</label><input id="phone1" inputmode="tel"></div>
+    <div><label>Phone 2</label><input id="phone2" inputmode="tel"></div>
+  </div>
+  <label>Quote Link</label><input id="link">
+
+  <label>SMS Template</label>
+  <textarea id="sms" rows="3">Hi {{name}}, it’s Martin from British Gas (lead {{lead}} – {{pc}}). Offer code: {{offer}} for {{amount}}. Your quote: {{link}}. Any questions, just reply.</textarea>
+
+  <label>Email Subject</label>
+  <input id="subj" value="Your boiler quote ({{lead}}) & offer {{offer}}">
+
+  <label>Email Body</label>
+  <textarea id="body" rows="7">Hello {{name}},
+
+Here’s your quote link: {{link}}
+Offer code: {{offer}} ({{amount}})
+Lead: {{lead}} • Postcode: {{pc}} • Product: {{prod}}
+Proposed date: {{date}}
+
+Best regards,
+Martin</textarea>
+
+  <div class="btns">
+    <button onclick="sendSMS()">Send SMS</button>
+    <button onclick="sendEmail()">Send Email</button>
+    <button onclick="copyAll()">Copy both messages</button>
+    <button onclick="prev()">◀︎ Prev</button>
+    <button onclick="next()">Next ▶︎</button>
+  </div>
+  <div id="pos"></div>
+</div>
+
+<script>
+let items=[], i=0;
+
+function example(){
+  document.getElementById('blocks').value =
+`50423995 - Kevin Page - SP6 1RB - (C3_01_155)
+£150.00
+22HSP6
+18/11/2025
+07426629253
+07426629253
+minuiteman@hotmail.com
+https://www.mybritishgashomeinstallation.co.uk/lead/bc510588d9ffbe4a36b3d72569d0e094b4e5739fd0ae75fd685a76877f3291b81494c7733da1d5da1dd16283eb184851?cid=oem_HSA_Web`;
+}
+
+function parseAll(){
+  const raw = document.getElementById('blocks').value.replace(/\r/g,'').trim();
+  if(!raw){ alert('Paste one or more customer blocks first.'); return; }
+  // Split blocks on blank line(s)
+  const blocks = raw.split(/\n\s*\n/);
+  items = blocks.map(parseBlock).filter(Boolean);
+  if(!items.length){ alert('Could not parse any customers.'); return; }
+  i=0;
+  document.getElementById('work').style.display='block';
+  load();
+}
+
+function parseBlock(text){
+  const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(lines.length < 8) return null;
+
+  // Line 1: "LeadID - Name - Postcode - (Product)"
+  const m = lines[0].match(/^\s*([^-\n]+)\s*-\s*([^-\n]+)\s*-\s*([A-Z0-9 ]+)\s*-\s*\(([^)]+)\)\s*$/i);
+  if(!m) return null;
+  const lead = m[1].trim();
+  const name = m[2].trim();
+  const pc   = m[3].trim();
+  const prod = m[4].trim();
+
+  const amount = lines[1] || '';
+  const offer  = lines[2] || '';
+  const date   = lines[3] || '';
+  const phone1 = lines[4] || '';
+  const phone2 = lines[5] || '';
+  const email  = lines[6] || '';
+  const link   = lines[7] || '';
+
+  return { lead, name, pc, prod, amount, offer, date, phone1, phone2, email, link };
+}
+
+function load(){
+  const d = items[i];
+  set('lead', d.lead); set('name', d.name); set('pc', d.pc); set('prod', d.prod);
+  set('amount', d.amount); set('offer', d.offer); set('date', d.date);
+  set('phone1', d.phone1); set('phone2', d.phone2); set('email', d.email); set('link', d.link);
+  document.getElementById('pos').textContent = `Customer ${i+1} of ${items.length}`;
+}
+
+function set(id,v){ document.getElementById(id).value = v ?? '' }
+function val(id){ return document.getElementById(id).value.trim() }
+
+function getData(){
+  return {
+    lead: val('lead'), name: val('name'), pc: val('pc'), prod: val('prod'),
+    amount: val('amount'), offer: val('offer'), date: val('date'),
+    phone: val('phone1') || val('phone2'),
+    email: val('email'), link: val('link'),
+    smsTpl: document.getElementById('sms').value,
+    subjTpl: document.getElementById('subj').value,
+    bodyTpl: document.getElementById('body').value
+  };
+}
+
+function fill(t,d){
+  return t.replaceAll('{{lead}}',d.lead).replaceAll('{{name}}',d.name)
+    .replaceAll('{{pc}}',d.pc).replaceAll('{{prod}}',d.prod)
+    .replaceAll('{{amount}}',d.amount).replaceAll('{{offer}}',d.offer)
+    .replaceAll('{{date}}',d.date).replaceAll('{{link}}',d.link);
+}
+
+function sendSMS(){
+  const d = getData();
+  const body = fill(d.smsTpl, d);
+  const number = (d.phone || '').replace(/\s+/g,'');
+  const base = number ? `sms:${encodeURIComponent(number)}` : 'sms:';
+  location.href = `${base}&body=${encodeURIComponent(body).replace(/%20/g,'+')}`;
+}
+
+function sendEmail(){
+  const d = getData();
+  const to = d.email ? encodeURIComponent(d.email) : '';
+  const subj = encodeURIComponent(fill(d.subjTpl, d));
+  const body = encodeURIComponent(fill(d.bodyTpl, d));
+  location.href = `mailto:${to}?subject=${subj}&body=${body}`;
+}
+
+async function copyAll(){
+  const d = getData();
+  const sms = 'SMS:\n' + fill(d.smsTpl, d) + '\n\n';
+  const email = 'EMAIL SUBJECT:\n' + fill(d.subjTpl,d) + '\n\nEMAIL BODY:\n' + fill(d.bodyTpl,d);
+  try { await navigator.clipboard.writeText(sms + email); alert('Copied SMS + Email to clipboard.'); }
+  catch { alert('Copy failed (browser security).'); }
+}
+
+function next(){ if(i < items.length-1){ i++; load(); } }
+function prev(){ if(i > 0){ i--; load(); } }
+</script>
+</body>
+</html>
