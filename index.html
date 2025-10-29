@@ -17,7 +17,6 @@
   .pill{font-size:12px;background:#f4f4f4;border-radius:999px;padding:4px 8px;margin-left:6px}
   #pos{opacity:.7;margin-top:8px}
   .tiny{font-size:12px;opacity:.8}
-  #preview{margin-top:10px;border:1px dashed #ccc;border-radius:10px;padding:12px;white-space:pre-wrap;background:#fafafa;min-height:120px}
 </style>
 </head>
 <body>
@@ -100,9 +99,6 @@ If you can’t find the discount email, reply and I’ll guide you through the n
 Best regards,
 {{sender}}</textarea>
 
-  <label>Live Preview</label>
-  <div id="preview"></div>
-
   <div class="btns">
     <button onclick="sendSMS()">Send SMS</button>
     <button onclick="sendEmail()">Open Mail</button>
@@ -118,8 +114,7 @@ Best regards,
 const PUSH_CUT_WEBHOOK_URL = 'https://api.pushcut.io/cieTVWDg1mtNM4SOt20_N/notifications/Send%20work%20email';
 let items=[], i=0;
 
-function _norm(s){ return (s||'').replace(/\r/g,'').replace(/\u00A0/g,' ').trim(); }
-function _lines(s){ return (s||'').replace(/\r/g,'').split('\n').map(v=>v.trim()); }
+function _norm(s){ return (s||'').replace(/\r/g,'').replace(/[\u00A0\t]+/g,' ').trim(); }
 
 function getGreeting(){
   const hour = new Date().getHours();
@@ -134,98 +129,73 @@ function example(){
 }
 
 function parseAll(){
-  const raw0 = document.getElementById('blocks').value || '';
-  if(!_norm(raw0)){ alert('Paste one or more customer blocks first.'); return; }
+  const raw0 = document.getElementById('blocks').value;
+  if(!raw0 || !raw0.trim()){ alert('Paste one or more customer blocks first.'); return; }
+  const raw = raw0.replace(/\r/g,'');
 
-  const raw = raw0.replace(/\r/g,'').replace(/\u00A0/g,' ');
-  const lines = raw.split('\n');
+  // 1) Preferred: explicit blank-line blocks
+  let blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
 
-  // header: "5043… - Name (hyphens ok) - POSTCODE - (Product)"
-  const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\([^)]+\)\s*$/i;
-
-  // slice from each header to next header
-  const starts = [];
-  for(let i=0;i<lines.length;i++){ if(headerRe.test(lines[i])) starts.push(i); }
-
-  let blocks = [];
-  if(starts.length){
-    for(let j=0;j<starts.length;j++){
-      const start = starts[j];
-      const end = (j<starts.length-1) ? starts[j+1] : lines.length;
-      const chunk = lines.slice(start,end).join('\n').trim();
-      if(chunk) blocks.push(chunk);
+  // 2) Robust: split by HEADER LINES like "5043… - Name - PC - (Product)"
+  // This handles trailing lines after URLs ( '-', dates, 'Appointed', 'LO-xxxxx', etc.)
+  if(blocks.length <= 1){
+    const lines = raw.split('\n');
+    const headerRe = /^\s*\d+\s*-\s*[^-]+?-\s*[A-Z0-9 ]{3,8}\s*-\s*\([^)]+\)\s*$/i;
+    const headerIdx = [];
+    for(let idx=0; idx<lines.length; idx++){
+      if(headerRe.test(lines[idx])) headerIdx.push(idx);
     }
-  } else {
-    blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
-    if(!blocks.length) blocks = [raw.trim()];
+    if(headerIdx.length){
+      const chunks = [];
+      for(let j=0; j<headerIdx.length; j++){
+        const start = headerIdx[j];
+        const end   = (j < headerIdx.length-1) ? headerIdx[j+1] : lines.length;
+        chunks.push(lines.slice(start, end).join('\n').trim());
+      }
+      blocks = chunks.filter(Boolean);
+    }
   }
 
-  items = blocks.map(parseBlockSmart).filter(d => d && (d.lead || d.email || d.link));
+  // 3) Fallback: treat whole paste as one block
+  if(!blocks.length) blocks = [raw.trim()];
+
+  items = blocks.map(parseBlockSmart).filter(Boolean);
   if(!items.length){ alert('Could not parse any valid blocks.'); return; }
   i = 0;
   document.getElementById('work').style.display = 'block';
   load();
 }
 
-function findOffer(text){
-  const L = _lines(text).filter(Boolean);
-  for(let k=1; k<Math.min(L.length,10); k++){
-    const m = L[k].match(/^[A-Z0-9]{5,12}$/i);
-    if(m && /[A-Z]/i.test(m[0]) && /\d/.test(m[0])) return m[0].toUpperCase();
-  }
-  const all = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/ig) || [];
-  const pick = all.find(s => /[A-Z]/i.test(s) && /\d/.test(s));
-  return (pick || '').toUpperCase();
-}
-
 function parseBlockSmart(text){
   const t = _norm(text);
 
-  // --- header line ---
+  // HEADER anywhere in the chunk
   let lead='', name='', pc='', prod='';
-  const m1 = t.match(/(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)/i);
+  const m1 = t.match(/(\d+)\s*-\s*([^-]+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)/i);
   if(m1){ lead=_norm(m1[1]); name=_norm(m1[2]); pc=_norm(m1[3]); prod=_norm(m1[4]); }
 
-  // --- £ amount ---
+  // Amount £… (first)
   const amount = (t.match(/(£\s?\d[\d,]*\.?\d{0,2})/i)||['',''])[1] || '';
 
-  // --- offer ---
-  const offer  = findOffer(text);
+  // Offer 5–12 alphanumerics not from query params
+  const offer  = (t.match(/\b(?!cid=)[A-Z0-9]{5,12}\b(?![^?]*=)/i)||['',''])[1] || '';
 
-  // --- first date ---
+  // Date DD/MM/YYYY (take the first)
   const date   = (t.match(/\b\d{2}\/\d{2}\/\d{4}\b/)||['',''])[1] || '';
 
-  // --- mobiles 07… or +447… ---
-  const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
-  const phones = Array.from(t.matchAll(mobileRe))
-    .map(m=>m[0].replace(/\s+/g,'').replace(/^0/,'+44'));
-  const phone1 = phones[0] || '';
-  const phone2 = phones[1] || '';
+  // Phones (ignore '-' placeholders), up to two
+  const phones = Array.from(t.matchAll(/\b(?:\+?44|0)\d{9,10}\b/g)).map(m=>m[0]);
+  const phone1 = (phones[0]||'');
+  const phone2 = (phones[1]||'');
 
-  // --- email (take the last match to skip junk earlier) ---
-  const emails = Array.from(t.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig)).map(m=>m[0]);
-  const email = emails.length ? emails[emails.length-1].toLowerCase() : '';
+  // Email
+  const email  = (t.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)||['',''])[1] || '';
 
-  // --- last URL ---
+  // Use the LAST URL; strip trailing punctuation
   const urls = Array.from(t.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
   const link = urls.length ? urls[urls.length-1] : '';
 
   return { lead, name, pc, prod, amount, offer, date, phone1, phone2, email, link };
-}
-
-/* --------------------------------------------------
-   Live preview: replace {{placeholders}} with values
-   -------------------------------------------------- */
-function previewMessage(template, record){
-  if(!template){ return ''; }
-  const map = {};
-  Object.entries(record || {}).forEach(([key,value]) => {
-    map[key.toLowerCase()] = value ?? '';
-  });
-  return template.replace(/{{\s*([^}]+?)\s*}}/g, (_, key) => {
-    const lookup = map[key.trim().toLowerCase()];
-    return (lookup ?? '').toString();
-  });
 }
 
 function load(){
@@ -234,7 +204,6 @@ function load(){
   set('amount', d.amount); set('offer', d.offer); set('date', d.date);
   set('phone1', d.phone1); set('phone2', d.phone2); set('email', d.email); set('link', d.link);
   document.getElementById('pos').textContent = `Customer ${i+1} of ${items.length}`;
-  updatePreview();
 }
 
 function set(id,v){ document.getElementById(id).value = v ?? '' }
@@ -254,8 +223,18 @@ function getData(){
   };
 }
 
-function fill(template, data){
-  return previewMessage(template, data);
+function fill(t,d){
+  return (t ?? '')
+    .replaceAll('{{lead}}', d.lead ?? '')
+    .replaceAll('{{name}}', d.name ?? '')
+    .replaceAll('{{pc}}', d.pc ?? '')
+    .replaceAll('{{prod}}', d.prod ?? '')
+    .replaceAll('{{amount}}', d.amount ?? '')
+    .replaceAll('{{offer}}', d.offer ?? '')
+    .replaceAll('{{date}}', d.date ?? '')
+    .replaceAll('{{link}}', d.link ?? '')
+    .replaceAll('{{sender}}', d.sender ?? 'Martin Bibb')
+    .replaceAll('{{greeting}}', d.greeting ?? getGreeting());
 }
 
 function ensureLink(text, link, { prefix = '\n\nQuote link: ', suffix = '' } = {}){
@@ -316,19 +295,6 @@ function buildWorkEmail(d){
   return { to: d.email, subject, body };
 }
 
-function updatePreview(){
-  const el = document.getElementById('preview');
-  if(!el){ return; }
-  const data = getData();
-  const sms = ensureLink(previewMessage(data.smsTpl, data), data.link);
-  const emailSubject = ensureLinkInline(previewMessage(data.subjTpl, data), data.link);
-  const emailBody = ensureLink(previewMessage(data.bodyTpl, data), data.link);
-  const hasContent = [sms, emailSubject, emailBody].some(Boolean);
-  el.textContent = hasContent
-    ? `SMS:\n${sms}\n\nEmail Subject:\n${emailSubject}\n\nEmail Body:\n${emailBody}`
-    : '';
-}
-
 async function copyAll(){
   const d = getData();
   const sms = 'SMS:\n' + ensureLink(fill(d.smsTpl, d), d.link) + '\n\n';
@@ -345,12 +311,6 @@ function prev(){ if(i > 0){ i--; load(); } }
 // Populate Pushcut URL on load
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pcurl').value = PUSH_CUT_WEBHOOK_URL;
-  const previewIds = ['lead','name','pc','prod','amount','offer','date','email','link','sender','sms','subj','body','phone1','phone2'];
-  previewIds.forEach(id => {
-    const el = document.getElementById(id);
-    if(el){ el.addEventListener('input', updatePreview); }
-  });
-  updatePreview();
 });
 </script>
 </body>
