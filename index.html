@@ -17,6 +17,7 @@
   .pill{font-size:12px;background:#f4f4f4;border-radius:999px;padding:4px 8px;margin-left:6px}
   #pos{opacity:.7;margin-top:8px}
   .tiny{font-size:12px;opacity:.8}
+  #preview{margin-top:10px;border:1px dashed #ccc;border-radius:10px;padding:12px;white-space:pre-wrap;background:#fafafa;min-height:120px}
 </style>
 </head>
 <body>
@@ -99,6 +100,9 @@ If you can’t find the discount email, reply and I’ll guide you through the n
 Best regards,
 {{sender}}</textarea>
 
+  <label>Live Preview</label>
+  <div id="preview"></div>
+
   <div class="btns">
     <button onclick="sendSMS()">Send SMS</button>
     <button onclick="sendEmail()">Open Mail</button>
@@ -177,34 +181,51 @@ function findOffer(text){
 function parseBlockSmart(text){
   const t = _norm(text);
 
-  // header anywhere
+  // --- header line ---
   let lead='', name='', pc='', prod='';
   const m1 = t.match(/(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)/i);
   if(m1){ lead=_norm(m1[1]); name=_norm(m1[2]); pc=_norm(m1[3]); prod=_norm(m1[4]); }
 
-  // amount £...
+  // --- £ amount ---
   const amount = (t.match(/(£\s?\d[\d,]*\.?\d{0,2})/i)||['',''])[1] || '';
 
-  // offer (new logic)
+  // --- offer ---
   const offer  = findOffer(text);
 
-  // first date dd/mm/yyyy
+  // --- first date ---
   const date   = (t.match(/\b\d{2}\/\d{2}\/\d{4}\b/)||['',''])[1] || '';
 
-  // mobiles 07… / +447… (spaces allowed)
+  // --- mobiles 07… or +447… ---
   const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
-  const phones = Array.from(t.matchAll(mobileRe)).map(m=>m[0].replace(/\s+/g,'').replace(/^(\+?44)/,'+44'));
+  const phones = Array.from(t.matchAll(mobileRe))
+    .map(m=>m[0].replace(/\s+/g,'').replace(/^0/,'+44'));
   const phone1 = phones[0] || '';
   const phone2 = phones[1] || '';
 
-  // email
-  const email  = (t.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)||['',''])[1] || '';
+  // --- email (take the last match to skip junk earlier) ---
+  const emails = Array.from(t.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig)).map(m=>m[0]);
+  const email = emails.length ? emails[emails.length-1].toLowerCase() : '';
 
-  // last URL (trim trailing punct)
+  // --- last URL ---
   const urls = Array.from(t.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
   const link = urls.length ? urls[urls.length-1] : '';
 
   return { lead, name, pc, prod, amount, offer, date, phone1, phone2, email, link };
+}
+
+/* --------------------------------------------------
+   Live preview: replace {{placeholders}} with values
+   -------------------------------------------------- */
+function previewMessage(template, record){
+  if(!template){ return ''; }
+  const map = {};
+  Object.entries(record || {}).forEach(([key,value]) => {
+    map[key.toLowerCase()] = value ?? '';
+  });
+  return template.replace(/{{\s*([^}]+?)\s*}}/g, (_, key) => {
+    const lookup = map[key.trim().toLowerCase()];
+    return (lookup ?? '').toString();
+  });
 }
 
 function load(){
@@ -213,6 +234,7 @@ function load(){
   set('amount', d.amount); set('offer', d.offer); set('date', d.date);
   set('phone1', d.phone1); set('phone2', d.phone2); set('email', d.email); set('link', d.link);
   document.getElementById('pos').textContent = `Customer ${i+1} of ${items.length}`;
+  updatePreview();
 }
 
 function set(id,v){ document.getElementById(id).value = v ?? '' }
@@ -304,6 +326,19 @@ function buildWorkEmail(d){
   return { to: d.email, subject, body };
 }
 
+function updatePreview(){
+  const el = document.getElementById('preview');
+  if(!el){ return; }
+  const data = getData();
+  const sms = ensureLink(previewMessage(data.smsTpl, data), data.link);
+  const emailSubject = ensureLinkInline(previewMessage(data.subjTpl, data), data.link);
+  const emailBody = ensureLink(previewMessage(data.bodyTpl, data), data.link);
+  const hasContent = [sms, emailSubject, emailBody].some(Boolean);
+  el.textContent = hasContent
+    ? `SMS:\n${sms}\n\nEmail Subject:\n${emailSubject}\n\nEmail Body:\n${emailBody}`
+    : '';
+}
+
 async function copyAll(){
   const d = getData();
   const sms = 'SMS:\n' + ensureLink(fill(d.smsTpl, d), d.link) + '\n\n';
@@ -320,6 +355,12 @@ function prev(){ if(i > 0){ i--; load(); } }
 // Populate Pushcut URL on load
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pcurl').value = PUSH_CUT_WEBHOOK_URL;
+  const previewIds = ['lead','name','pc','prod','amount','offer','date','email','link','sender','sms','subj','body','phone1','phone2'];
+  previewIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.addEventListener('input', updatePreview); }
+  });
+  updatePreview();
 });
 </script>
 </body>
