@@ -151,17 +151,47 @@ Martin</textarea>
 </div>
 
 <script>
-/* ========= Normalise & Markdown strip ========= */
-function pre(s){
+/* ========= Normalise & Markdown helpers ========= */
+function basePre(s){
   return (s||'')
     .replace(/\r/g,'')
     .replace(/\u00A0/g,' ')
-    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,'-')
-    // strip [label](mailto:…|tel:…|http…)
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,'-');
+}
+function baseNorm(s){ return basePre(s).trim(); }
+function baseLines(s){ return basePre(s).split('\n'); }
+
+const emailPlainRe  = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig;
+const urlPlainRe    = /https?:\/\/[^\s)>,]+/ig;
+const mobilePlainRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
+
+function markdownify(text){
+  const lines = baseLines(text);
+  const out = [];
+  for(let i=0;i<lines.length;i++){
+    let ln = lines[i];
+    if(!HEADER_RE.test(ln)){
+      ln = ln.replace(urlPlainRe, (m)=>`<${m}>`);
+      ln = ln.replace(emailPlainRe, (m)=>`[${m}](mailto:${m})`);
+      ln = ln.replace(mobilePlainRe, (m)=>{
+        const tel = m.replace(/\s+/g,'');
+        return `[${m}](tel:${tel})`;
+      });
+    }
+    out.push(ln);
+  }
+  return out.join('\n');
+}
+
+function stripMarkdownLinks(s){
+  return (s||'')
+    // [label](mailto:…|tel:…|http…)
     .replace(/\[([^\]]+)\]\((?:mailto:|tel:|https?:\/\/)[^)]+\)/gi,'$1')
-    // unwrap <https://…>
+    // <https://…>
     .replace(/<\s*(https?:\/\/[^>\s]+)\s*>/gi,'$1');
 }
+
+function pre(s){ return stripMarkdownLinks(basePre(s)); }
 function _norm(s){ return pre(s).trim(); }
 function _lines(s){ return pre(s).split('\n'); }
 
@@ -208,11 +238,16 @@ LO-527152`;
 
 /* ========= Parse entry ========= */
 function parseAll(){
-  const raw0 = document.getElementById('blocks').value || '';
-  if(!_norm(raw0)){ alert('Paste data first.'); return; }
-  const raw = pre(raw0);
+  const ta = document.getElementById('blocks');
+  const raw0 = ta ? ta.value : '';
+  if(!baseNorm(raw0)){ alert('Paste data first.'); return; }
 
-  items = parseBlocks(raw);
+  const md = markdownify(raw0);
+  if(ta) ta.value = md;
+
+  const clean = stripMarkdownLinks(basePre(md));
+
+  items = parseBlocks(clean);
   if(!items.length){ alert('Could not parse any records.'); return; }
   idx=0;
   document.getElementById('work').style.display='block';
