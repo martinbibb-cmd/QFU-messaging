@@ -200,9 +200,21 @@ function fill(t,d){
     .replaceAll('{{date}}',d.date).replaceAll('{{link}}',d.link);
 }
 
+function ensureLink(text, link, { prefix = '\n\nQuote link: ', suffix = '' } = {}){
+  if(!link){ return text; }
+  if(text.includes(link)){ return text; }
+  return text + `${prefix}${link}${suffix}`;
+}
+
+function ensureLinkInline(text, link){
+  if(!link){ return text; }
+  if(text.includes(link)){ return text; }
+  return text ? `${text} ${link}` : link;
+}
+
 function sendSMS(){
   const d = getData();
-  const body = fill(d.smsTpl, d);
+  const body = ensureLink(fill(d.smsTpl, d), d.link);
   const number = (d.phone || '').replace(/\s+/g,'');
   const base = number ? `sms:${encodeURIComponent(number)}` : 'sms:';
   location.href = `${base}&body=${encodeURIComponent(body)}`;
@@ -211,8 +223,8 @@ function sendSMS(){
 function sendEmail(){
   const d = getData();
   const to = d.email ? encodeURIComponent(d.email) : '';
-  const subj = encodeURIComponent(fill(d.subjTpl, d));
-  const body = encodeURIComponent(fill(d.bodyTpl, d));
+  const subj = encodeURIComponent(ensureLinkInline(fill(d.subjTpl, d), d.link));
+  const body = encodeURIComponent(ensureLink(fill(d.bodyTpl, d), d.link));
   location.href = `mailto:${to}?subject=${subj}&body=${body}`;
 }
 
@@ -236,16 +248,20 @@ async function sendViaPushcut(){
 
 function buildWorkEmail(d){
   const subjectToken = d.offer || d.date || 'follow-up';
-  const subject = subjectToken ? `Your boiler quote & discount (${subjectToken})` : 'Your boiler quote & discount';
+  let subject = subjectToken ? `Your boiler quote & discount (${subjectToken})` : 'Your boiler quote & discount';
+  subject = ensureLinkInline(subject, d.link);
   const discountPhrase = d.amount ? `an extra ${d.amount} discount` : 'an extra discount';
-  const body = `Good morning it’s Martin Bibb from British Gas.\n\nI recently visited to provide you with a new boiler quotation. I’m following up because the office has offered ${discountPhrase} due to spare installation capacity at the moment.\n\nIf you’ve seen the email with this discount, great — if not, please let me know and I’ll guide you through the next steps.\n\nHave a great day.\n\nMartin Bibb\nBritish Gas Heating Adviser`;
+  const baseBody = `Good morning it’s Martin Bibb from British Gas.\n\nI recently visited to provide you with a new boiler quotation. I’m following up because the office has offered ${discountPhrase} due to spare installation capacity at the moment.\n\nIf you’ve seen the email with this discount, great — if not, please let me know and I’ll guide you through the next steps.\n\nHave a great day.\n\nMartin Bibb\nBritish Gas Heating Adviser`;
+  const body = ensureLink(baseBody, d.link);
   return { to: d.email, subject, body };
 }
 
 async function copyAll(){
   const d = getData();
-  const sms = 'SMS:\n' + fill(d.smsTpl, d) + '\n\n';
-  const email = 'EMAIL SUBJECT:\n' + fill(d.subjTpl,d) + '\n\nEMAIL BODY:\n' + fill(d.bodyTpl,d);
+  const sms = 'SMS:\n' + ensureLink(fill(d.smsTpl, d), d.link) + '\n\n';
+  const emailSubject = ensureLinkInline(fill(d.subjTpl,d), d.link);
+  const emailBody = ensureLink(fill(d.bodyTpl,d), d.link);
+  const email = 'EMAIL SUBJECT:\n' + emailSubject + '\n\nEMAIL BODY:\n' + emailBody;
   try { await navigator.clipboard.writeText(sms + email); alert('Copied SMS + Email to clipboard.'); }
   catch { alert('Copy failed (browser security).'); }
 }
