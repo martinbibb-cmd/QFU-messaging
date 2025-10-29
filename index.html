@@ -35,8 +35,8 @@
 <div class="card">
   <strong>Pushcut (work email via Automation Server)</strong>
   <label>Pushcut Webhook URL</label>
-  <input id="pcurl" placeholder="https://api.pushcut.io/v1/YOUR/WEBHOOK" oninput="savePC()" />
-  <div class="tiny">Create a Pushcut Automation Server webhook that runs a Shortcut on your office device to send the email. This app POSTs JSON {to,subject,body} to that URL.</div>
+  <input id="pcurl" value="https://api.pushcut.io/cieTVWDg1mtNM4SOt20_N/notifications/Send%20work%20email" readonly />
+  <div class="tiny">This app POSTs JSON {to,subject,body} to your Pushcut Automation Server using the webhook above.</div>
 </div>
 
 <div id="work" class="card" style="display:none">
@@ -105,6 +105,7 @@ Martin</textarea>
 </div>
 
 <script>
+const PUSH_CUT_WEBHOOK_URL = 'https://api.pushcut.io/cieTVWDg1mtNM4SOt20_N/notifications/Send%20work%20email';
 let items=[], i=0;
 
 function example(){
@@ -112,13 +113,9 @@ function example(){
 `12345678 - Alex Example - AB1 2CD - (C3_01_155) £175.00 ABC123 18/11/2025 07123456789 alex@example.com https://example.com/lead/abcdef?cid=test
 
 87654321 - Jamie Sample - ZZ9 9ZZ - (C4_02_200) £90.00 Z9Y8X7 25/11/2025 07000111222 jamie@example.com https://example.com/lead/xyz987?cid=test`;
-  const saved = localStorage.getItem('pcurl')||''; document.getElementById('pcurl').value=saved;
 }
 
-function savePC(){ localStorage.setItem('pcurl', document.getElementById('pcurl').value.trim()); }
-
 function parseAll(){
-  const saved = localStorage.getItem('pcurl')||''; document.getElementById('pcurl').value=saved;
   const raw0 = document.getElementById('blocks').value;
   if(!raw0 || !raw0.trim()){ alert('Paste one or more customer blocks first.'); return; }
   const raw = raw0.replace(/\r/g,'');
@@ -220,22 +217,29 @@ function sendEmail(){
 }
 
 async function sendViaPushcut(){
-  const url = (document.getElementById('pcurl').value||'').trim();
-  if(!url){ alert('Add your Pushcut webhook URL first.'); return; }
   const d = getData();
-  const payload = {
-    to: d.email,
-    subject: fill(d.subjTpl,d),
-    body: fill(d.bodyTpl,d),
-    meta: { lead:d.lead, name:d.name, offer:d.offer, amount:d.amount, link:d.link }
-  };
+  const payload = buildWorkEmail(d);
+  if(!payload.to){ console.warn('Pushcut email not sent: missing recipient email.'); return; }
   try{
-    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if(!res.ok) throw new Error(String(res.status));
-    alert('Sent to Pushcut webhook.');
+    const res = await fetch(PUSH_CUT_WEBHOOK_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok){
+      console.warn('Pushcut webhook responded with status', res.status);
+    }
   }catch(e){
-    alert('Pushcut webhook failed. If blocked by CORS, send via a small Cloudflare Worker proxy.');
+    console.error('Pushcut webhook failed', e);
   }
+}
+
+function buildWorkEmail(d){
+  const subjectToken = d.offer || d.date || 'follow-up';
+  const subject = subjectToken ? `Your boiler quote & discount (${subjectToken})` : 'Your boiler quote & discount';
+  const discountPhrase = d.amount ? `an extra ${d.amount} discount` : 'an extra discount';
+  const body = `Good morning it’s Martin Bibb from British Gas.\n\nI recently visited to provide you with a new boiler quotation. I’m following up because the office has offered ${discountPhrase} due to spare installation capacity at the moment.\n\nIf you’ve seen the email with this discount, great — if not, please let me know and I’ll guide you through the next steps.\n\nHave a great day.\n\nMartin Bibb\nBritish Gas Heating Adviser`;
+  return { to: d.email, subject, body };
 }
 
 async function copyAll(){
@@ -249,9 +253,9 @@ async function copyAll(){
 function next(){ if(i < items.length-1){ i++; load(); } }
 function prev(){ if(i > 0){ i--; load(); } }
 
-// Restore Pushcut URL on load
+// Populate Pushcut URL on load
 document.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('pcurl')||''; document.getElementById('pcurl').value=saved;
+  document.getElementById('pcurl').value = PUSH_CUT_WEBHOOK_URL;
 });
 </script>
 </body>
