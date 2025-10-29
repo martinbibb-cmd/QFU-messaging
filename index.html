@@ -44,6 +44,7 @@
     <div><label>Lead ID</label><input id="lead"></div>
     <div><label>Name</label><input id="name"></div>
   </div>
+  <label>Sender Name</label><input id="sender" value="Martin Bibb">
   <div class="row">
     <div><label>Postcode</label><input id="pc"></div>
     <div><label>Product Code</label><input id="prod"></div>
@@ -63,7 +64,7 @@
   <label>Quote Link</label><input id="link">
 
   <label>SMS Template</label>
-  <textarea id="sms" rows="12">Good morning it’s Martin Bibb from British Gas.
+  <textarea id="sms" rows="12">{{greeting}} it’s {{sender}} from British Gas.
 
 I recently came and visited you and provided you with a new boiler quotation. I’m just following up some of my quotations and I’ve noticed that the Office I’ve offered you an extra £150 discount due to having spare engine engineer installation capacity at the moment.
 
@@ -79,7 +80,7 @@ Have a great day.</textarea>
   <input id="subj" value="Your boiler quote & discount ({{offer}} / {{amount}})">
 
   <label>Email Body</label>
-  <textarea id="body" rows="10">Hello {{name}},
+  <textarea id="body" rows="10">{{greeting}} {{name}},
 
 I recently visited to provide your boiler quotation. We currently have spare engineer installation capacity, so the office has authorised an extra discount for you.
 
@@ -91,7 +92,7 @@ I recently visited to provide your boiler quotation. We currently have spare eng
 If you can’t find the discount email, reply and I’ll guide you through the next steps.
 
 Best regards,
-Martin</textarea>
+{{sender}}</textarea>
 
   <div class="btns">
     <button onclick="sendSMS()">Send SMS</button>
@@ -107,6 +108,11 @@ Martin</textarea>
 <script>
 const PUSH_CUT_WEBHOOK_URL = 'https://api.pushcut.io/cieTVWDg1mtNM4SOt20_N/notifications/Send%20work%20email';
 let items=[], i=0;
+
+function getGreeting(){
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : 'Good afternoon';
+}
 
 function example(){
   document.getElementById('blocks').value =
@@ -206,6 +212,8 @@ function getData(){
     amount: val('amount'), offer: val('offer'), date: val('date'),
     phone: val('phone1') || val('phone2'),
     email: val('email'), link: val('link'),
+    sender: val('sender') || 'Martin Bibb',
+    greeting: getGreeting(),
     smsTpl: document.getElementById('sms').value,
     subjTpl: document.getElementById('subj').value,
     bodyTpl: document.getElementById('body').value
@@ -213,10 +221,17 @@ function getData(){
 }
 
 function fill(t,d){
-  return t.replaceAll('{{lead}}',d.lead).replaceAll('{{name}}',d.name)
-    .replaceAll('{{pc}}',d.pc).replaceAll('{{prod}}',d.prod)
-    .replaceAll('{{amount}}',d.amount).replaceAll('{{offer}}',d.offer)
-    .replaceAll('{{date}}',d.date).replaceAll('{{link}}',d.link);
+  return (t ?? '')
+    .replaceAll('{{lead}}', d.lead ?? '')
+    .replaceAll('{{name}}', d.name ?? '')
+    .replaceAll('{{pc}}', d.pc ?? '')
+    .replaceAll('{{prod}}', d.prod ?? '')
+    .replaceAll('{{amount}}', d.amount ?? '')
+    .replaceAll('{{offer}}', d.offer ?? '')
+    .replaceAll('{{date}}', d.date ?? '')
+    .replaceAll('{{link}}', d.link ?? '')
+    .replaceAll('{{sender}}', d.sender ?? 'Martin Bibb')
+    .replaceAll('{{greeting}}', d.greeting ?? getGreeting());
 }
 
 function ensureLink(text, link, { prefix = '\n\nQuote link: ', suffix = '' } = {}){
@@ -270,7 +285,9 @@ function buildWorkEmail(d){
   let subject = subjectToken ? `Your boiler quote & discount (${subjectToken})` : 'Your boiler quote & discount';
   subject = ensureLinkInline(subject, d.link);
   const discountPhrase = d.amount ? `an extra ${d.amount} discount` : 'an extra discount';
-  const baseBody = `Good morning it’s Martin Bibb from British Gas.\n\nI recently visited to provide you with a new boiler quotation. I’m following up because the office has offered ${discountPhrase} due to spare installation capacity at the moment.\n\nIf you’ve seen the email with this discount, great — if not, please let me know and I’ll guide you through the next steps.\n\nHave a great day.\n\nMartin Bibb\nBritish Gas Heating Adviser`;
+  const sender = d.sender || 'Martin Bibb';
+  const greeting = d.greeting || getGreeting();
+  const baseBody = `${greeting} it’s ${sender} from British Gas.\n\nI recently visited to provide you with a new boiler quotation. I’m following up because the office has offered ${discountPhrase} due to spare installation capacity at the moment.\n\nIf you’ve seen the email with this discount, great — if not, please let me know and I’ll guide you through the next steps.\n\nHave a great day.\n\n${sender}\nBritish Gas Heating Adviser`;
   const body = ensureLink(baseBody, d.link);
   return { to: d.email, subject, body };
 }
