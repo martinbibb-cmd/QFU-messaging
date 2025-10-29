@@ -115,6 +115,7 @@ const PUSH_CUT_WEBHOOK_URL = 'https://api.pushcut.io/cieTVWDg1mtNM4SOt20_N/notif
 let items=[], i=0;
 
 function _norm(s){ return (s||'').replace(/\r/g,'').replace(/\u00A0/g,' ').trim(); }
+function _lines(s){ return (s||'').replace(/\r/g,'').split('\n').map(v=>v.trim()); }
 
 function getGreeting(){
   const hour = new Date().getHours();
@@ -132,18 +133,15 @@ function parseAll(){
   const raw0 = document.getElementById('blocks').value || '';
   if(!_norm(raw0)){ alert('Paste one or more customer blocks first.'); return; }
 
-  // Normalise NBSPs and keep line structure for splitting
   const raw = raw0.replace(/\r/g,'').replace(/\u00A0/g,' ');
-
-  // HEADER pattern: LEAD - Name(with hyphens allowed) - POSTCODE - (Product)
-  const headerRe = /^\s*(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\([^)]+\)\s*$/i;
-
-  // 1) Primary split: slice from each HEADER line to the next HEADER line
   const lines = raw.split('\n');
+
+  // header: "5043… - Name (hyphens ok) - POSTCODE - (Product)"
+  const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\([^)]+\)\s*$/i;
+
+  // slice from each header to next header
   const starts = [];
-  for(let i=0;i<lines.length;i++){
-    if(headerRe.test(lines[i])) starts.push(i);
-  }
+  for(let i=0;i<lines.length;i++){ if(headerRe.test(lines[i])) starts.push(i); }
 
   let blocks = [];
   if(starts.length){
@@ -154,49 +152,55 @@ function parseAll(){
       if(chunk) blocks.push(chunk);
     }
   } else {
-    // 2) Fallback: blank line split
     blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
+    if(!blocks.length) blocks = [raw.trim()];
   }
 
-  // 3) Last resort: treat whole paste as one block
-  if(!blocks.length) blocks = [raw.trim()];
-
-  // Parse and keep only plausible records
   items = blocks.map(parseBlockSmart).filter(d => d && (d.lead || d.email || d.link));
   if(!items.length){ alert('Could not parse any valid blocks.'); return; }
-
   i = 0;
   document.getElementById('work').style.display = 'block';
   load();
 }
 
+function findOffer(text){
+  const L = _lines(text).filter(Boolean);
+  for(let k=1; k<Math.min(L.length,10); k++){
+    const m = L[k].match(/^[A-Z0-9]{5,12}$/i);
+    if(m && /[A-Z]/i.test(m[0]) && /\d/.test(m[0])) return m[0].toUpperCase();
+  }
+  const all = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/ig) || [];
+  const pick = all.find(s => /[A-Z]/i.test(s) && /\d/.test(s));
+  return (pick || '').toUpperCase();
+}
+
 function parseBlockSmart(text){
   const t = _norm(text);
 
-  // HEADER (not anchored to start so it can appear anywhere in the chunk)
+  // header anywhere
   let lead='', name='', pc='', prod='';
   const m1 = t.match(/(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)/i);
   if(m1){ lead=_norm(m1[1]); name=_norm(m1[2]); pc=_norm(m1[3]); prod=_norm(m1[4]); }
 
-  // £ amount
+  // amount £...
   const amount = (t.match(/(£\s?\d[\d,]*\.?\d{0,2})/i)||['',''])[1] || '';
 
-  // Offer: 5–12 alphanumerics, not query param keys like cid=
-  const offer  = (t.match(/\b(?!cid=)[A-Z0-9]{5,12}\b(?![^?]*=)/i)||['',''])[1] || '';
+  // offer (new logic)
+  const offer  = findOffer(text);
 
-  // Date DD/MM/YYYY (take the first)
+  // first date dd/mm/yyyy
   const date   = (t.match(/\b\d{2}\/\d{2}\/\d{4}\b/)||['',''])[1] || '';
 
-  // Phones — accept 07… and +447… with optional spaces
-  const mobileRe = /\b(?:\+?44\s?7\d{2}|0\s?7\d{2})\s?\d{3}\s?\d{4}\b/g;
-  const phones = Array.from(t.matchAll(mobileRe)).map(m=>m[0].replace(/\s+/g,''));
+  // mobiles 07… / +447… (spaces allowed)
+  const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
+  const phones = Array.from(t.matchAll(mobileRe)).map(m=>m[0].replace(/\s+/g,'').replace(/^(\+?44)/,'+44'));
   const phone1 = phones[0] || '';
   const phone2 = phones[1] || '';
 
-  // Email
+  // email
   const email  = (t.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)||['',''])[1] || '';
 
-  // Quote link: keep the LAST URL in the chunk; strip trailing punctuation
+  // last URL (trim trailing punct)
   const urls = Array.from(t.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
   const link = urls.length ? urls[urls.length-1] : '';
 
