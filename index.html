@@ -232,74 +232,91 @@ https://example.com/lead/ccc`;
 // ===================== Parsing =====================
 // Split by header lines: "LEAD - Name - PC - (Product)"
 function parseAll(){
-  loadCfg();
-  loadTemplates();
   const raw0 = document.getElementById('blocks').value || '';
   if(!_norm(raw0)){ alert('Paste one or more customer blocks first.'); return; }
 
   const raw = raw0.replace(/\r/g,'').replace(/\u00A0/g,' ');
   const lines = raw.split('\n');
-  const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\([^)]+\)\s*$/i;
 
+  // Header: "LEAD - Name - POSTCODE - (Product)"; name may contain hyphens/spaces
+  const headerRe = /^\s*(\d+)\s*-\s*.+?\s*-\s*[A-Z0-9 ]{3,8}\s*-\s*\(([^)]+)\)\s*$/i;
+
+  // Slice from each header line to the next header line
   const starts = [];
-  for(let i=0;i<lines.length;i++){ if(headerRe.test(lines[i])) starts.push(i); }
+  for (let i=0;i<lines.length;i++){ if(headerRe.test(lines[i])) starts.push(i); }
 
   let blocks = [];
   if(starts.length){
     for(let j=0;j<starts.length;j++){
       const start = starts[j];
-      const end = (j<starts.length-1) ? starts[j+1] : lines.length;
+      const end   = (j<starts.length-1) ? starts[j+1] : lines.length;
       const chunk = lines.slice(start,end).join('\n').trim();
       if(chunk) blocks.push(chunk);
     }
   } else {
-    // fallback: blank line split
+    // Fallback: blank-line split
     blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
     if(!blocks.length) blocks = [raw.trim()];
   }
 
   items = blocks.map(parseBlockSmart).filter(d => d && (d.lead || d.email || d.link));
   if(!items.length){ alert('Could not parse any valid blocks.'); return; }
+
   idx = 0;
   document.getElementById('work').style.display = 'block';
   loadRecord();
-  buildBatchTable();
+  buildBatchTable?.();
 }
 
-// Extract fields from one chunk
 function parseBlockSmart(text){
-  const t = _norm(text);
+  const lines = _lines(text).filter(Boolean);
+  const joined = _norm(text);
 
-  // header anywhere
+  // ----- 1) Header (anywhere in chunk)
   let lead='', name='', pc='', prod='';
-  const m1 = t.match(/(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)/i);
-  if(m1){ lead=_norm(m1[1]); name=_norm(m1[2]); pc=_norm(m1[3]); prod=_norm(m1[4]); }
+  for(const ln of lines){
+    const m = ln.match(/^\s*(\d+)\s*-\s*(.+?)\s*-\s*([A-Z0-9 ]{3,8})\s*-\s*\(([^)]+)\)\s*$/i);
+    if(m){ lead=_norm(m[1]); name=_norm(m[2]); pc=_norm(m[3]); prod=_norm(m[4]); break; }
+  }
 
-  // amount £...
-  const amount = (t.match(/(£\s?\d[\d,]*\.?\d{0,2})/i)||['',''])[1] || '';
+  // ----- 2) Scan line-by-line in order for the rest
+  let amount='', offer='', date='';
+  let link='', email='';
+  const emailMatches = [];
+  const urlRe = /(https?:\/\/\S+)/i;
+  const moneyRe = /(£\s?\d[\d,]*\.?\d{0,2})/i;
+  const offerLineRe = /^[A-Z0-9]{5,12}$/i; // single token line like 22HSP6 / 22WSC4
+  const dateRe = /\b\d{2}\/\d{2}\/\d{4}\b/;
 
-  // offer: prefer a single-token alnum 5–12 in early lines; else fallback
-  const offer = findOffer(text);
+  for (const ln of lines){
+    if (!amount){
+      const m = ln.match(moneyRe);
+      if(m) amount = m[1];
+    }
+    if (!offer && offerLineRe.test(ln) && /[A-Z]/i.test(ln) && /\d/.test(ln)){
+      offer = ln.toUpperCase();
+    }
+    if (!date){
+      const m = ln.match(dateRe);
+      if(m) date = m[0];
+    }
+    // collect any emails we see
+    const ems = ln.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig);
+    if(ems) emailMatches.push(...ems);
+    // first URL we encounter (quote link is before trailing audit lines)
+    if (!link){
+      const u = ln.match(urlRe);
+      if(u) link = u[1].replace(/[).,;]+$/,'');
+    }
+  }
+  if (!email && emailMatches.length) email = emailMatches[emailMatches.length-1].toLowerCase();
 
-  // first date dd/mm/yyyy
-  const date   = (t.match(/\b\d{2}\/\d{2}\/\d{4}\b/)||['',''])[1] || '';
-
-  // mobiles 07… / +447… (with spaces)
+  // ----- 3) Mobiles (07… / +447… with spaces); ignore '-' placeholders
   const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
-  const phones = Array.from(t.matchAll(mobileRe))
-    .map(m=>m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44'));
-  const phone1 = phones[0] || '';
-  const phone2 = phones[1] || '';
-
-  // email (take the last)
-  const emails = Array.from(t.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig))
-                      .map(m=>m[0]);
-  const email = emails.length ? emails[emails.length-1].toLowerCase() : '';
-
-  // last URL (strip trailing punct)
-  const urls = Array.from(t.matchAll(/https?:\/\/\S+/ig))
-                    .map(m=>m[0].replace(/[).,;]+$/,''));
-  const link = urls.length ? urls[urls.length-1] : '';
+  const phoneMatches = Array.from(joined.matchAll(mobileRe))
+    .map(m => m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44'));
+  const phone1 = phoneMatches[0] || '';
+  const phone2 = phoneMatches[1] || '';
 
   return { lead, name, pc, prod, amount, offer, date, phone1, phone2, email, link };
 }
