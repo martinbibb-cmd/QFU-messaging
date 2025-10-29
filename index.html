@@ -164,10 +164,20 @@ function parseBlockSmart(text){
   if(m1){ lead=m1[1].trim(); name=m1[2].trim(); pc=m1[3].trim(); prod=m1[4].trim(); }
 
   // Amount: first currency-looking token
-  const amount = (t.match(/(£\s?\d[\d,]*\.?\d{0,2})/i)||['',''])[1];
+  const amountMatch = /(£\s?\d[\d,]*\.?\d{0,2})/i.exec(t);
+  const amount = amountMatch ? amountMatch[1] : '';
 
-  // Offer: 5–12 alphanumerics not part of URL params
-  const offer  = (t.match(/\b(?!cid=)[A-Z0-9]{5,12}\b(?![^?]*=)/i)||['',''])[1];
+  // Offer: first token after amount when available, else fallback to general match
+  let offer = '';
+  if(amountMatch){
+    const afterAmount = t.slice(amountMatch.index + amountMatch[0].length);
+    const afterMatch = afterAmount.match(/^[^A-Z0-9]*([A-Z0-9]{5,12})(?![^?]*=)/i);
+    if(afterMatch){ offer = afterMatch[1]; }
+  }
+  if(!offer){
+    const fallbackMatch = t.match(/\b(?!cid=)[A-Z0-9]{5,12}\b(?![^?]*=)/i);
+    if(fallbackMatch){ offer = fallbackMatch[1]; }
+  }
 
   // Date
   const date   = (t.match(/\b\d{2}\/\d{2}\/\d{4}\b/)||['',''])[1];
