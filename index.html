@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QFU Messaging • v2.2 (single-file)</title>
-<meta name="theme-color" content="#0b57d0">
+<title>QFU Messaging • v2.3 (Markdown-safe)</title>
 <style>
   :root { --pad:14px; }
   html,body{background:#f6f7fb}
@@ -15,53 +14,40 @@
   input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;background:#fff}
   .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
   .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
-  button,a.btn{border:1px solid #ccc;border-radius:999px;padding:10px 14px;text-decoration:none;cursor:pointer;background:#fff}
+  button{border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff;cursor:pointer}
   .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
-  #pos{opacity:.7;margin-top:8px}
-  .tiny{font-size:12px;opacity:.8}
-  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
   pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
   table{border-collapse:collapse;width:100%} th,td{border:1px solid #eee;padding:8px;text-align:left}
   th{background:#fafafa}
+  .tiny{font-size:12px;opacity:.8}
+  #pos{opacity:.7;margin-top:8px}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
 </style>
 </head>
 <body>
-<h1>QFU Messaging <span class="pill">v2.2</span></h1>
+<h1>QFU Messaging <span class="pill">v2.3</span></h1>
 
 <div class="card">
-  <label>Paste records (block format exactly as you send: header + 12 lines):</label>
-  <textarea id="blocks" rows="12" class="mono" placeholder="Example block:
-
-50430409 - Kirsty Rolt - BH23 4LH - (C3_01_155)
+  <label>Paste data (raw from Salesforce or the Markdown version from your Shortcut):</label>
+  <textarea id="blocks" rows="14" class="mono" placeholder="[5043… - Name - BHxx xxx - (C3_01_155)](…)
 £150.00
 22HSP6
 18/11/2025
-07714869715
-+447714869715
-kirstyrolt@yahoo.co.uk
-https://...
-HSA followed up
-20/07/2022
-Appointed
-November Capacity Offer
-
-50433921 - Marian Barbu - BH1 1HX - (C3_01_155)
-£125.00
-22WSC4
-18/11/2025
-07597604176
-07597604176
-marian.barbu33@yahoo.ro
-https://...
+[077…](tel:077…)
+[+447…](tel:+447…)
+[email@…](mailto:email@…)
+<https://…>
 -
 20/07/2022
 Appointed
-Winter Saver"></textarea>
+LO-xxxxx
+
+[5043… - Next Name - …](…)"></textarea>
   <div class="btns">
     <button onclick="parseAll()">Parse</button>
-    <button onclick="loadExample()">Load Example</button>
+    <button onclick="example()">Load Example</button>
   </div>
-  <div class="tiny">Parser splits by header lines like <code>LEAD - Name - POSTCODE - (Area)</code> and maps the next 12 non-empty lines in order.</div>
+  <div class="tiny">Parser auto-strips Markdown wrappers and fancy dashes before parsing.</div>
 </div>
 
 <div id="work" class="card" style="display:none">
@@ -82,6 +68,7 @@ Winter Saver"></textarea>
     <div><label>Email</label><input id="email" type="email"></div>
   </div>
   <label>Quote Link</label><input id="link" placeholder="https://…">
+
   <div class="row">
     <div><label>HSA Followed Up</label><input id="hsa"></div>
     <div><label>Offer Created</label><input id="created" placeholder="DD/MM/YYYY"></div>
@@ -164,193 +151,155 @@ Martin</textarea>
 </div>
 
 <script>
-/* ===== v2.2 single-file ===== */
-function _pre(s){
+/* ========= Normalise & Markdown strip ========= */
+function pre(s){
   return (s||'')
     .replace(/\r/g,'')
     .replace(/\u00A0/g,' ')
-    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,'-');
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,'-')
+    // strip [label](mailto:…|tel:…|http…)
+    .replace(/\[([^\]]+)\]\((?:mailto:|tel:|https?:\/\/)[^)]+\)/gi,'$1')
+    // unwrap <https://…>
+    .replace(/<\s*(https?:\/\/[^>\s]+)\s*>/gi,'$1');
 }
-function _norm(s){ return _pre(s).trim(); }
-function _lines(s){ return _pre(s).split('\n'); }
+function _norm(s){ return pre(s).trim(); }
+function _lines(s){ return pre(s).split('\n'); }
 
-const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
-const moneyRe = /(£\s?\d[\d,]*\.?\d{0,2})/i;
-const dateRe  = /\b\d{2}\/\d{2}\/\d{4}\b/;
-const urlRe   = /(https?:\/\/\S+)/i;
-// Mobiles: 07… / +44 7… with optional spaces; normalize to +44…
+/* ========= Regexes ========= */
+const HEADER_RE = /^\s*(\d+)\s*[-–—]\s*(.+?)\s*[-–—]\s*([A-Z0-9 ]{3,8})\s*[-–—]\s*\(([^)]+)\)\s*$/i;
+const emailRe  = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const moneyRe  = /(£\s?\d[\d,]*\.?\d{0,2})/i;
+const dateRe   = /\b\d{2}\/\d{2}\/\d{4}\b/;
+const urlRe    = /https?:\/\/[^\s)>,]+/i;
 const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
-const headerRe = /^\s*(\d+)\s*[-–—]\s*(.+?)\s*[-–—]\s*([A-Z0-9 ]{3,8})\s*[-–—]\s*\(([^)]+)\)\s*$/i;
 
-let items = [], idx = 0;
+/* ========= State ========= */
+let items=[], idx=0;
 
-function loadExample(){
+/* ========= Example ========= */
+function example(){
   document.getElementById('blocks').value =
-`50430409 - Kirsty Rolt - BH23 4LH - (C3_01_155)
+`[50430409 - Kirsty Rolt - BH23 4LH - (C3_01_155)](https://homeinstallation.my.salesforce.com/006Tw00000JaxY5)
 £150.00
 22HSP6
 18/11/2025
-07714869715
-+447714869715
-kirstyrolt@yahoo.co.uk
-https://example.com/lead/aaa
-HSA followed up
-20/07/2022
-Appointed
-November Capacity Offer
-
-50433921 - Marian Barbu - BH1 1HX - (C3_01_155)
-£125.00
-22WSC4
-18/11/2025
-07597604176
-07597604176
-marian.barbu33@yahoo.ro
-https://example.com/lead/bbb
+[07714869715](tel:07714869715)
+[+447714869715](tel:+447714869715)
+[kirstyrolt@yahoo.co.uk](mailto:kirstyrolt@yahoo.co.uk)
+<https://www.mybritishgashomeinstallation.co.uk/lead/dd99df81eb34b18b18fbdf5b38341c873543528d2bc15723c608dc14f1836b413b57e40e5fbe76eb61eca122872b6613>
 -
 20/07/2022
 Appointed
-Winter Saver`;
+LO-526459
+
+[50433921 - Marian Barbu - BH1 1HX - (C3_01_155)](https://homeinstallation.my.salesforce.com/006Tw00000JgzXB)
+£150.00
+22WSC4
+18/11/2025
+[07597604176](tel:07597604176)
+[07597604176](tel:07597604176)
+[marian.barbu33@yahoo.ro](mailto:marian.barbu33@yahoo.ro)
+<https://www.mybritishgashomeinstallation.co.uk/lead/f470d2e598ca41d32b8a4ca0acb96b44647e8e502f69988fd4591959827e0c2998f37a6bb47fd3327863b586ca19708d?cid=oem_HSA_Web>
+-
+20/07/2022
+Appointed
+LO-527152`;
 }
 
+/* ========= Parse entry ========= */
 function parseAll(){
   const raw0 = document.getElementById('blocks').value || '';
   if(!_norm(raw0)){ alert('Paste data first.'); return; }
-  const raw = _pre(raw0);
+  const raw = pre(raw0);
 
-  // Split by HEADER lines: "LEAD - Name - POSTCODE - (Area)"
-  const lines = _lines(raw);
-  const starts = [];
-  for(let i=0;i<lines.length;i++){
-    if(headerRe.test(lines[i])) starts.push(i);
-  }
-  if(!starts.length){
-    alert('No header lines found. Make sure each record starts like "5043… - Name - BHxx xxx - (Area)".');
-    return;
-  }
-  const blocks = [];
-  for(let j=0;j<starts.length;j++){
-    const start = starts[j];
-    const end = (j<starts.length-1) ? starts[j+1] : lines.length;
-    const chunk = lines.slice(start,end).join('\n').trim();
-    if(chunk) blocks.push(chunk);
-  }
-
-  items = blocks.map(parseRecordStrict).filter(x=>x && (x.lead || x.email || x.link));
+  items = parseBlocks(raw);
   if(!items.length){ alert('Could not parse any records.'); return; }
-
-  idx = 0;
-  document.getElementById('work').style.display = 'block';
+  idx=0;
+  document.getElementById('work').style.display='block';
   loadRecord();
   buildBatchTable();
 }
 
-// Parse one block strictly by your 13-line pattern (1 header + 12 lines)
-function parseRecordStrict(text){
-  const ls = _lines(text).map(s=>s.trim());
-  if(!ls.length) return null;
-
-  const headerIndex = ls.findIndex(line => headerRe.test(line));
-  if(headerIndex === -1) return null;
-
-  const headerMatch = ls[headerIndex].match(headerRe);
-  const lead = headerMatch[1].trim();
-  const name = headerMatch[2].trim();
-  const pc = headerMatch[3].trim();
-  const area = headerMatch[4].trim();
-
-  const tail = ls.slice(headerIndex + 1).filter(x => x && x !== '-');
-  const at = (i) => tail[i] || '';
-
-  const amountLine = at(0);
-  const offerLine = at(1);
-  const offerEndsLine = at(2);
-
-  const amountMatch = amountLine.match(moneyRe);
-  let amount = amountMatch ? (amountMatch[1] || amountMatch[0]) : amountLine;
-  let offer = offerLine;
-  if(/^[A-Z0-9]{5,12}$/i.test(offerLine)){ offer = offerLine.toUpperCase(); }
-  const offerEndsMatch = offerEndsLine.match(dateRe);
-  let offerEnds = offerEndsMatch ? offerEndsMatch[0] : offerEndsLine;
-
-  const phone1 = normaliseMobile(at(3));
-  const phone2 = normaliseMobile(at(4));
-
-  const emailMatch = at(5).match(emailRe);
-  let email = emailMatch ? emailMatch[0] : '';
-  const linkMatch = at(6).match(urlRe);
-  let link = linkMatch ? linkMatch[0].replace(/[).,;]+$/,'') : '';
-
-  const hsa = at(7);
-  const createdLine = at(8);
-  const createdMatch = createdLine.match(dateRe);
-  const created = createdMatch ? createdMatch[0] : createdLine;
-  const stage = at(9);
-  const offerName = at(10);
-
-  if(!amount){
-    const m = text.match(moneyRe); if(m) amount = m[1] || m[0];
+/* ========= Core parser (header split + positional fields) ========= */
+function parseBlocks(text){
+  const lines = _lines(text);
+  const starts=[];
+  for(let i=0;i<lines.length;i++){ if(HEADER_RE.test(lines[i])) starts.push(i); }
+  // fallback: blank-line blocks if no headers
+  if(!starts.length){
+    const chunks = text.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
+    return chunks.map(parseOne).filter(validRec);
   }
-  if(!offer || !/[A-Z]/i.test(offer) || !/\d/.test(offer)){
-    const m = text.match(/\b(?!cid=)(?!LO-)[A-Z0-9]{5,12}\b/i); if(m) offer = m[0].toUpperCase();
+  const blocks=[];
+  for(let j=0;j<starts.length;j++){
+    const start=starts[j];
+    const end=(j<starts.length-1)?starts[j+1]:lines.length;
+    blocks.push(lines.slice(start,end).join('\n').trim());
   }
-  if(!offerEnds){
-    const m = text.match(dateRe); if(m) offerEnds = m[0];
-  }
+  return blocks.map(parseOne).filter(validRec);
+}
+function validRec(r){ return r && (r.lead || r.email || r.link); }
 
-  const tailEmail = findLastEmail(tail);
-  if(!email) email = tailEmail;
-  if(!email){
-    const ems = Array.from(text.matchAll(new RegExp(emailRe.source, 'ig'))).map(m=>m[0]);
-    if(ems.length) email = ems[ems.length-1];
-  }
-  email = (email || '').toLowerCase();
+function parseOne(block){
+  const ls = _lines(block).map(s=>s.trim()).filter(Boolean);
+  const hIdx = ls.findIndex(ln=>HEADER_RE.test(ln));
+  if(hIdx<0) return {};
 
-  if(!link){
-    const tailUrl = findFirstUrl(tail);
-    if(tailUrl) link = tailUrl;
-  }
-  if(!link){
-    const url = Array.from(text.matchAll(/https?:\/\/\S+/ig)).map(m=>m[0].replace(/[).,;]+$/,''));
-    if(url.length) link = url[0];
-  }
+  const hm = ls[hIdx].match(HEADER_RE);
+  const lead = hm[1].trim(), name = hm[2].trim(), pc = hm[3].trim(), area = hm[4].trim();
 
-  return {
-    lead, name, pc, area,
-    amount, offer, offerEnds,
-    phone1, phone2,
-    email,
-    link,
-    hsa, created, stage, offerName
-  };
+  // Next lines in order; allow blanks / '-' lines (skip them)
+  const tail = ls.slice(hIdx+1).filter(x => x && x !== '-');
 
-  function normaliseMobile(s){
-    const raw = (s||'').toString().trim();
-    if(!raw || raw === '-') return '';
-    const m = raw.match(mobileRe);
-    if(!m) return '';
-    return m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44');
-  }
-  function findLastEmail(arr){
-    for(let i=arr.length-1; i>=0; i--){
-      const m = (arr[i]||'').match(emailRe);
-      if(m) return m[0];
-    }
-    return '';
-  }
-  function findFirstUrl(arr){
-    for(const ln of arr){
-      const m = (ln||'').match(/(https?:\/\/\S+)/i);
-      if(m) return m[1].replace(/[).,;]+$/,'');
-    }
-    return '';
-  }
+  // Positional mapping with validation/fallbacks
+  const amount    = pickAmount(tail[0]);
+  const offer     = pickOffer(tail[1]);
+  const offerEnds = pickDate(tail[2]);
+
+  const phone1    = pickPhone(tail[3]);
+  const phone2    = pickPhone(tail[4]);
+
+  const email     = pickEmail(tail[5]) || findLastEmail(tail);
+  const link      = pickUrl(tail[6])   || findFirstUrl(tail);
+
+  const hsa       = tail[7] || '';
+  const created   = pickDate(tail[8]) || '';
+  const stage     = tail[9] || '';
+  const offerName = tail[10] || '';
+
+  return { lead,name,pc,area, amount,offer,offerEnds, phone1,phone2, email,link, hsa,created,stage,offerName };
 }
 
-/* ===== UI / Templates ===== */
+/* ========= Pickers / validators ========= */
+function pickAmount(s){ const m=(s||'').match(moneyRe); return m?m[1]: (s||''); }
+function pickOffer(s){
+  const v=(s||'').trim().toUpperCase();
+  if(/^[A-Z0-9]{5,12}$/.test(v) && /[A-Z]/.test(v) && /\d/.test(v)) return v;
+  return v;
+}
+function pickDate(s){ const m=(s||'').match(dateRe); return m?m[0]: (s||''); }
+function pickPhone(s){
+  const raw=(s||'').toString().trim();
+  if(!raw || raw==='-') return '';
+  const m = raw.match(mobileRe);
+  if(!m) return '';
+  return m[0].replace(/\s+/g,'').replace(/^0/,'+44').replace(/^\+?44/,'+44');
+}
+function pickEmail(s){ const m=(s||'').match(emailRe); return m?m[0].toLowerCase():''; }
+function pickUrl(s){ const m=(s||'').match(urlRe); return m? m[0].replace(/[).,;]+$/,'') : ''; }
+
+function findLastEmail(arr){
+  for(let i=arr.length-1;i>=0;i--){ const m=(arr[i]||'').match(emailRe); if(m) return m[0].toLowerCase(); }
+  return '';
+}
+function findFirstUrl(arr){
+  for(const ln of arr){ const m=(ln||'').match(urlRe); if(m) return m[0].replace(/[).,;]+$/,''); }
+  return '';
+}
+
+/* ========= UI / Preview ========= */
 function setVal(id,v){ document.getElementById(id).value = v ?? ''; }
 function getVal(id){ return document.getElementById(id).value.trim(); }
-
 function current(){
   return {
     lead:getVal('lead'), name:getVal('name'), pc:getVal('pc'), area:getVal('area'),
@@ -369,11 +318,11 @@ function fillTpl(tpl, rec){
     .replace(/{{\s*amount\s*}}/gi, rec.amount||'')
     .replace(/{{\s*offer\s*}}/gi, rec.offer||'')
     .replace(/{{\s*offerEnds\s*}}/gi, rec.offerEnds||'')
+    .replace(/{{\s*date\s*}}/gi, rec.created||'')
     .replace(/{{\s*link\s*}}/gi, rec.link||'')
     .replace(/{{\s*email\s*}}/gi, rec.email||'')
     .replace(/{{\s*stage\s*}}/gi, rec.stage||'')
-    .replace(/{{\s*offerName\s*}}/gi, rec.offerName||'')
-    .replace(/{{\s*created\s*}}/gi, rec.created||'');
+    .replace(/{{\s*offerName\s*}}/gi, rec.offerName||'');
 }
 function refreshPreview(){
   const rec = current();
@@ -389,7 +338,8 @@ function loadRecord(){
   const d = items[idx];
   setVal('lead', d.lead); setVal('name', d.name); setVal('pc', d.pc); setVal('area', d.area);
   setVal('amount', d.amount); setVal('offer', d.offer); setVal('offerEnds', d.offerEnds);
-  setVal('phone1', d.phone1||''); setVal('phone2', d.phone2||''); setVal('email', d.email); setVal('link', d.link);
+  setVal('phone1', d.phone1 || ''); setVal('phone2', d.phone2 || '');
+  setVal('email', d.email); setVal('link', d.link);
   setVal('hsa', d.hsa||''); setVal('created', d.created||''); setVal('stage', d.stage||''); setVal('offerName', d.offerName||'');
   refreshPreview();
 }
@@ -398,7 +348,6 @@ function prev(){ if(idx > 0){ idx--; loadRecord(); } }
 
 function buildBatchTable(){
   const tbody = document.querySelector('#batchTable tbody');
-  if(!tbody) return;
   tbody.innerHTML = '';
   items.forEach((d, i) => {
     const tr = document.createElement('tr');
@@ -409,12 +358,9 @@ function buildBatchTable(){
     tbody.appendChild(tr);
   });
 }
-function previewAll(){
-  buildBatchTable();
-  document.getElementById('batch').style.display = 'block';
-}
+function previewAll(){ buildBatchTable(); document.getElementById('batch').style.display = 'block'; }
 
-/* ===== Actions ===== */
+/* ========= Actions ========= */
 function sendSMS(){
   const rec = current();
   const msg = fillTpl(getVal('smsTpl'), rec);
