@@ -254,18 +254,8 @@ function getData(){
   };
 }
 
-function fill(t,d){
-  return (t ?? '')
-    .replaceAll('{{lead}}', d.lead ?? '')
-    .replaceAll('{{name}}', d.name ?? '')
-    .replaceAll('{{pc}}', d.pc ?? '')
-    .replaceAll('{{prod}}', d.prod ?? '')
-    .replaceAll('{{amount}}', d.amount ?? '')
-    .replaceAll('{{offer}}', d.offer ?? '')
-    .replaceAll('{{date}}', d.date ?? '')
-    .replaceAll('{{link}}', d.link ?? '')
-    .replaceAll('{{sender}}', d.sender ?? 'Martin Bibb')
-    .replaceAll('{{greeting}}', d.greeting ?? getGreeting());
+function fill(template, data){
+  return previewMessage(template, data);
 }
 
 function ensureLink(text, link, { prefix = '\n\nQuote link: ', suffix = '' } = {}){
