@@ -120,13 +120,32 @@ function parseAll(){
   if(!raw0 || !raw0.trim()){ alert('Paste one or more customer blocks first.'); return; }
   const raw = raw0.replace(/\r/g,'');
   let blocks = raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
-  if(blocks.length===1){
-    // If no blank lines, split on each http(s) occurrence
-    blocks = raw.split(/(?=https?:\/\/)/i).map(s=>s.trim()).filter(Boolean);
+  if(blocks.length<=1){
+    const byQuoteLink = splitByQuoteLink(raw);
+    if(byQuoteLink.length){ blocks = byQuoteLink; }
   }
   items = blocks.map(parseBlockSmart).filter(Boolean);
   if(!items.length){ alert('Could not parse any valid blocks.'); return; }
   i=0; document.getElementById('work').style.display='block'; load();
+}
+
+function splitByQuoteLink(raw){
+  const matches = Array.from(raw.matchAll(/https?:\/\/\S+/ig));
+  if(!matches.length){ return raw.trim() ? [raw.trim()] : []; }
+  const segments = [];
+  let lastIndex = 0;
+  for(const match of matches){
+    const end = match.index + match[0].length;
+    const segment = raw.slice(lastIndex, end).trim();
+    if(segment){ segments.push(segment); }
+    lastIndex = end;
+  }
+  const tail = raw.slice(lastIndex).trim();
+  if(tail){
+    if(segments.length){ segments[segments.length-1] += ' ' + tail; }
+    else { segments.push(tail); }
+  }
+  return segments;
 }
 
 function parseBlockSmart(text){
