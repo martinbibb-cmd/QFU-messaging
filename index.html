@@ -13,7 +13,8 @@
   label{display:block;font-weight:600;margin:10px 0 6px}
   input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;background:#fff}
   .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
-  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
+  .btns input{flex:1;min-width:200px;padding:10px 12px;border:1px solid #ccc;border-radius:999px}
   button{border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff;cursor:pointer}
   .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
   pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
@@ -48,6 +49,7 @@ LO-xxxxx
 
 [5043… - Next Name - …](…)"></textarea>
   <div class="btns">
+    <input id="sender" placeholder="Sender (e.g. Martin Bibb)" value="Martin Bibb" aria-label="Sender name">
     <button onclick="parseAll()">Parse</button>
     <button onclick="example()">Load Example</button>
   </div>
@@ -59,7 +61,7 @@ LO-xxxxx
   <div class="row">
     <div>
       <label>SMS Template</label>
-      <textarea id="smsTpl" rows="11" class="mono">Good morning it’s Martin Bibb from British Gas.
+      <textarea id="smsTpl" rows="11" class="mono">Good {{time based option}} it’s {{sender}} from British Gas.
 
 I recently visited and provided you with a boiler quotation. I’m following up as the office has offered you an extra {{amount}}
 discount (code {{offer}}) due to spare engineer capacity.
@@ -285,6 +287,13 @@ function parseBlocks(text){
 }
 function validRec(r){ return r && (r.lead || r.email || r.link); }
 
+function getTimeBasedOption(){
+  const hour = new Date().getHours();
+  if(hour < 12) return 'morning';
+  if(hour < 17) return 'afternoon';
+  return 'evening';
+}
+
 function parseOne(block){
   const ls = _lines(block).map(s=>s.trim()).filter(Boolean);
   const hIdx = ls.findIndex(ln=>HEADER_RE.test(ln));
@@ -346,12 +355,14 @@ function findFirstUrl(arr){
 function setVal(id,v){ document.getElementById(id).value = v ?? ''; }
 function getVal(id){ return document.getElementById(id).value.trim(); }
 function current(){
+  const timeOption = getTimeBasedOption();
   return {
     lead:getVal('lead'), name:getVal('name'), pc:getVal('pc'), area:getVal('area'),
     amount:getVal('amount'), offer:getVal('offer'), offerEnds:getVal('offerEnds'),
     phone:getVal('phone1') || getVal('phone2'),
     email:getVal('email'), link:getVal('link'),
-    hsa:getVal('hsa'), created:getVal('created'), stage:getVal('stage'), offerName:getVal('offerName')
+    hsa:getVal('hsa'), created:getVal('created'), stage:getVal('stage'), offerName:getVal('offerName'),
+    sender:getVal('sender'), timeOption, timeBasedOption:timeOption
   };
 }
 function fillTpl(tpl, rec){
@@ -367,7 +378,10 @@ function fillTpl(tpl, rec){
     .replace(/{{\s*link\s*}}/gi, rec.link||'')
     .replace(/{{\s*email\s*}}/gi, rec.email||'')
     .replace(/{{\s*stage\s*}}/gi, rec.stage||'')
-    .replace(/{{\s*offerName\s*}}/gi, rec.offerName||'');
+    .replace(/{{\s*offerName\s*}}/gi, rec.offerName||'')
+    .replace(/{{\s*sender\s*}}/gi, rec.sender||'')
+    .replace(/{{\s*time\s*based\s*option\s*}}/gi, rec.timeOption||'')
+    .replace(/{{\s*timeBasedOption\s*}}/gi, rec.timeOption||'');
 }
 function refreshPreview(){
   const rec = current();
@@ -486,7 +500,7 @@ async function copyBoth(){
 }
 
 /* Live preview on edit */
-['lead','name','pc','area','amount','offer','offerEnds','phone1','phone2','email','link','hsa','created','stage','offerName','smsTpl','subjTpl','bodyTpl']
+['lead','name','pc','area','amount','offer','offerEnds','phone1','phone2','email','link','hsa','created','stage','offerName','smsTpl','subjTpl','bodyTpl','sender']
   .forEach(id => document.getElementById(id).addEventListener('input', refreshPreview));
 </script>
 </body>
