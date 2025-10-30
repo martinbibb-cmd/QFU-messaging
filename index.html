@@ -22,6 +22,10 @@
   .tiny{font-size:12px;opacity:.8}
   #pos{opacity:.7;margin-top:8px}
   .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .status{margin-top:4px}
+  .record-done{color:#0b7a0b;font-weight:600}
+  .preview.done{border-color:#9ad29a;background:#f3fff3}
+  tr.is-done td{background:#f6fff6}
 </style>
 </head>
 <body>
@@ -50,38 +54,15 @@ LO-xxxxx
   <div class="tiny">Parser auto-strips Markdown wrappers and fancy dashes before parsing.</div>
 </div>
 
-<div id="work" class="card" style="display:none">
-  <div class="row">
-    <div><label>Lead</label><input id="lead"></div>
-    <div><label>Name</label><input id="name"></div>
-    <div><label>Postcode</label><input id="pc"></div>
-    <div><label>Area</label><input id="area"></div>
-  </div>
-  <div class="row">
-    <div><label>Offer Amount</label><input id="amount" placeholder="£150.00"></div>
-    <div><label>Offer Code</label><input id="offer" placeholder="22HSP6"></div>
-    <div><label>Offer Ends</label><input id="offerEnds" placeholder="DD/MM/YYYY"></div>
-  </div>
-  <div class="row">
-    <div><label>Mobile</label><input id="phone1" inputmode="tel"></div>
-    <div><label>Other Number</label><input id="phone2" inputmode="tel"></div>
-    <div><label>Email</label><input id="email" type="email"></div>
-  </div>
-  <label>Quote Link</label><input id="link" placeholder="https://…">
-
-  <div class="row">
-    <div><label>HSA Followed Up</label><input id="hsa"></div>
-    <div><label>Offer Created</label><input id="created" placeholder="DD/MM/YYYY"></div>
-    <div><label>Stage</label><input id="stage"></div>
-    <div><label>Offer Name</label><input id="offerName"></div>
-  </div>
-
+<div id="templates" class="card">
+  <h3>Pre-formed Messages</h3>
   <div class="row">
     <div>
       <label>SMS Template</label>
       <textarea id="smsTpl" rows="11" class="mono">Good morning it’s Martin Bibb from British Gas.
 
-I recently visited and provided you with a boiler quotation. I’m following up as the office has offered you an extra {{amount}} discount (code {{offer}}) due to spare engineer capacity.
+I recently visited and provided you with a boiler quotation. I’m following up as the office has offered you an extra {{amount}}
+discount (code {{offer}}) due to spare engineer capacity.
 
 Offer ends: {{offerEnds}}.
 
@@ -108,6 +89,35 @@ If you can’t find the discount email, reply and I’ll guide you through the n
 Best regards,</textarea>
     </div>
   </div>
+  <div class="tiny">Review and adjust these templates before parsing. They’ll be hidden once your records are ready.</div>
+</div>
+
+<div id="work" class="card" style="display:none">
+  <div class="row">
+    <div><label>Lead</label><input id="lead"></div>
+    <div><label>Name</label><input id="name"></div>
+    <div><label>Postcode</label><input id="pc"></div>
+    <div><label>Area</label><input id="area"></div>
+  </div>
+  <div class="row">
+    <div><label>Offer Amount</label><input id="amount" placeholder="£150.00"></div>
+    <div><label>Offer Code</label><input id="offer" placeholder="22HSP6"></div>
+    <div><label>Offer Ends</label><input id="offerEnds" placeholder="DD/MM/YYYY"></div>
+  </div>
+  <div class="row">
+    <div><label>Mobile</label><input id="phone1" inputmode="tel"></div>
+    <div><label>Other Number</label><input id="phone2" inputmode="tel"></div>
+    <div><label>Email</label><input id="email" type="email"></div>
+  </div>
+  <label>Quote Link</label><input id="link" placeholder="https://…">
+
+  <div class="row">
+    <div><label>HSA Followed Up</label><input id="hsa"></div>
+    <div><label>Offer Created</label><input id="created" placeholder="DD/MM/YYYY"></div>
+    <div><label>Stage</label><input id="stage"></div>
+    <div><label>Offer Name</label><input id="offerName"></div>
+  </div>
+
 
   <h3>Preview (filled)</h3>
   <div class="row">
@@ -133,6 +143,7 @@ Best regards,</textarea>
     <button onclick="previewAll()">Batch Preview</button>
   </div>
   <div id="pos"></div>
+  <div id="status" class="tiny status"></div>
 </div>
 
 <div id="batch" class="card" style="display:none">
@@ -141,7 +152,7 @@ Best regards,</textarea>
     <table id="batchTable"><thead>
       <tr>
         <th>#</th><th>Lead</th><th>Name</th><th>PC</th><th>Area</th>
-        <th>£</th><th>Code</th><th>Ends</th><th>Email</th><th>Mobile</th><th>Link</th>
+        <th>£</th><th>Code</th><th>Ends</th><th>Email</th><th>Mobile</th><th>Link</th><th>Status</th>
       </tr>
     </thead><tbody></tbody></table>
   </div>
@@ -244,9 +255,11 @@ function parseAll(){
 
   const clean = stripMarkdownLinks(basePre(md));
 
-  items = parseBlocks(clean);
+  items = parseBlocks(clean).map(rec => ({...rec, smsDone:false, emailDone:false}));
   if(!items.length){ alert('Could not parse any records.'); return; }
   idx=0;
+  const templatesCard = document.getElementById('templates');
+  if(templatesCard) templatesCard.style.display='none';
   document.getElementById('work').style.display='block';
   loadRecord();
   buildBatchTable();
@@ -364,8 +377,46 @@ function refreshPreview(){
   document.getElementById('smsPreview').textContent  = sms;
   document.getElementById('subjPreview').textContent = subj;
   document.getElementById('bodyPreview').textContent = body;
-  document.getElementById('pos').textContent = `Record ${idx+1} of ${items.length}`;
 }
+
+function setDoneState(id, done){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.toggle('done', !!done);
+}
+
+function applyDoneStyles(rec){
+  const smsDone = !!(rec && rec.smsDone);
+  const emailDone = !!(rec && rec.emailDone);
+  setDoneState('smsPreview', smsDone);
+  setDoneState('subjPreview', emailDone);
+  setDoneState('bodyPreview', emailDone);
+}
+
+function updateMeta(){
+  const posEl = document.getElementById('pos');
+  const statusEl = document.getElementById('status');
+  if(!posEl || !statusEl){ return; }
+  if(!items.length){
+    posEl.textContent='';
+    statusEl.textContent='';
+    posEl.classList.remove('record-done');
+    applyDoneStyles({});
+    return;
+  }
+  const rec = items[idx] || {};
+  posEl.textContent = `Record ${idx+1} of ${items.length}`;
+  const smsDone = !!rec.smsDone;
+  const emailDone = !!rec.emailDone;
+  const statusParts = [
+    `SMS ${smsDone ? '✅ Done' : '⬜ Pending'}`,
+    `Email ${emailDone ? '✅ Done' : '⬜ Pending'}`
+  ];
+  statusEl.textContent = `Status: ${statusParts.join(' · ')}`;
+  posEl.classList.toggle('record-done', smsDone && emailDone);
+  applyDoneStyles(rec);
+}
+
 function loadRecord(){
   const d = items[idx];
   setVal('lead', d.lead); setVal('name', d.name); setVal('pc', d.pc); setVal('area', d.area);
@@ -374,6 +425,7 @@ function loadRecord(){
   setVal('email', d.email); setVal('link', d.link);
   setVal('hsa', d.hsa||''); setVal('created', d.created||''); setVal('stage', d.stage||''); setVal('offerName', d.offerName||'');
   refreshPreview();
+  updateMeta();
 }
 function next(){ if(idx < items.length-1){ idx++; loadRecord(); } }
 function prev(){ if(idx > 0){ idx--; loadRecord(); } }
@@ -384,20 +436,36 @@ function buildBatchTable(){
   items.forEach((d, i) => {
     const tr = document.createElement('tr');
     const phone = d.phone1 || d.phone2 || '';
-    tr.innerHTML = `<td>${i+1}</td><td>${d.lead||''}</td><td>${d.name||''}</td><td>${d.pc||''}</td><td>${d.area||''}</td>
-                    <td>${d.amount||''}</td><td>${d.offer||''}</td><td>${d.offerEnds||''}</td>
-                    <td>${d.email||''}</td><td>${phone}</td><td>${d.link?'<a href="'+d.link+'" target="_blank">link</a>':''}</td>`;
+    const statusTxt = [
+      d.smsDone ? 'SMS ✓' : 'SMS …',
+      d.emailDone ? 'Email ✓' : 'Email …'
+    ].join(' / ');
+    tr.innerHTML = `<td>${i+1}</td><td>${d.lead||''}</td><td>${d.name||''}</td><td>${d.pc||''}</td><td>${d.area||''}</td>`
+                    + `<td>${d.amount||''}</td><td>${d.offer||''}</td><td>${d.offerEnds||''}</td>`
+                    + `<td>${d.email||''}</td><td>${phone}</td><td>${d.link?'<a href="'+d.link+'" target="_blank">link</a>':''}</td><td>${statusTxt}</td>`;
+    if(d.smsDone && d.emailDone){ tr.classList.add('is-done'); }
     tbody.appendChild(tr);
   });
 }
+
 function previewAll(){ buildBatchTable(); document.getElementById('batch').style.display = 'block'; }
 
 /* ========= Actions ========= */
+function markMessageDone(prop){
+  if(!items.length){ return; }
+  const rec = items[idx];
+  if(!rec){ return; }
+  rec[prop] = true;
+  updateMeta();
+  buildBatchTable();
+}
+
 function sendSMS(){
   const rec = current();
   const msg = fillTpl(getVal('smsTpl'), rec);
   const number = (rec.phone||'').replace(/\s+/g,'');
   const base = number ? `sms:${encodeURIComponent(number)}` : 'sms:';
+  markMessageDone('smsDone');
   location.href = `${base}&body=${encodeURIComponent(msg)}`;
 }
 function openMail(){
@@ -405,6 +473,7 @@ function openMail(){
   const subj = fillTpl(getVal('subjTpl'), rec);
   const body = fillTpl(getVal('bodyTpl'), rec);
   const to   = rec.email ? encodeURIComponent(rec.email) : '';
+  markMessageDone('emailDone');
   location.href = `mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
 }
 async function copyBoth(){
