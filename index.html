@@ -15,6 +15,8 @@
   .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
   .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
   .btns input{flex:1;min-width:200px;padding:10px 12px;border:1px solid #ccc;border-radius:999px}
+  .btns a.btn-link{display:inline-block;text-decoration:none;color:inherit;border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff}
+  .btns a.btn-link:focus-visible{outline:2px solid #446dff;outline-offset:2px}
   button{border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff;cursor:pointer}
   .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
   pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
@@ -100,6 +102,10 @@ Best regards,</textarea>
     <div><label>Name</label><input id="name"></div>
     <div><label>Postcode</label><input id="pc"></div>
     <div><label>Area</label><input id="area"></div>
+  </div>
+  <div class="btns" style="justify-content:flex-start">
+    <a id="what3wordsLink" class="btn-link" href="https://what3words.com/" target="_blank" rel="noopener">Open what3words</a>
+    <button type="button" onclick="pasteToSelected()">Paste to selected field</button>
   </div>
   <div class="row">
     <div><label>Offer Amount</label><input id="amount" placeholder="£150.00"></div>
@@ -215,6 +221,7 @@ const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
 
 /* ========= State ========= */
 let items=[], idx=0;
+let lastFocusedInput=null;
 
 /* ========= Example ========= */
 function example(){
@@ -351,6 +358,39 @@ function findFirstUrl(arr){
   return '';
 }
 
+/* ========= what3words helpers ========= */
+const W3W_RE = /(?:^|\b)(?:https?:\/\/(?:map\.)?what3words\.com\/|w3w\s*:|\/{3})?([a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+)(?:\b|$)/;
+
+function extractWhat3Words(value){
+  if(!value) return '';
+  const trimmed = value.trim();
+  const m = trimmed.match(W3W_RE);
+  return m ? m[1].toLowerCase() : '';
+}
+
+function updateWhat3WordsLink(raw){
+  const linkEl = document.getElementById('what3wordsLink');
+  if(!linkEl) return;
+  const candidate = extractWhat3Words(raw);
+  if(candidate){
+    linkEl.href = `https://what3words.com/${candidate}`;
+    linkEl.textContent = `Open what3words (${candidate})`;
+  }else{
+    linkEl.href = 'https://what3words.com/';
+    linkEl.textContent = 'Open what3words';
+  }
+}
+
+function findWhat3WordsInRecord(rec){
+  if(!rec) return '';
+  const fields = [rec.area, rec.link, rec.hsa, rec.offerName, rec.stage];
+  for(const value of fields){
+    const candidate = extractWhat3Words(value);
+    if(candidate) return candidate;
+  }
+  return '';
+}
+
 /* ========= UI / Preview ========= */
 function setVal(id,v){ document.getElementById(id).value = v ?? ''; }
 function getVal(id){ return document.getElementById(id).value.trim(); }
@@ -440,6 +480,12 @@ function loadRecord(){
   setVal('hsa', d.hsa||''); setVal('created', d.created||''); setVal('stage', d.stage||''); setVal('offerName', d.offerName||'');
   refreshPreview();
   updateMeta();
+  const target = lastFocusedInput;
+  if(target && target.value){
+    updateWhat3WordsLink(target.value);
+  }else{
+    updateWhat3WordsLink(findWhat3WordsInRecord(d));
+  }
 }
 function next(){ if(idx < items.length-1){ idx++; loadRecord(); } }
 function prev(){ if(idx > 0){ idx--; loadRecord(); } }
@@ -499,9 +545,41 @@ async function copyBoth(){
   try{ await navigator.clipboard.writeText(txt); alert('Copied SMS + Email to clipboard.'); }catch{ alert('Copy failed (browser)'); }
 }
 
+async function pasteToSelected(){
+  const active = document.activeElement;
+  const target = (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) ? active : lastFocusedInput;
+  if(!target){ alert('Select a field to paste into first.'); return; }
+  try{
+    const text = await navigator.clipboard.readText();
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    const before = target.value.slice(0,start);
+    const after = target.value.slice(end);
+    target.value = before + text + after;
+    const pos = before.length + text.length;
+    if(typeof target.setSelectionRange === 'function'){ target.setSelectionRange(pos, pos); }
+    target.dispatchEvent(new Event('input', {bubbles:true}));
+    lastFocusedInput = target;
+    updateWhat3WordsLink(target.value);
+  }catch(err){
+    alert('Paste failed (clipboard unavailable).');
+  }
+}
+
 /* Live preview on edit */
 ['lead','name','pc','area','amount','offer','offerEnds','phone1','phone2','email','link','hsa','created','stage','offerName','smsTpl','subjTpl','bodyTpl','sender']
-  .forEach(id => document.getElementById(id).addEventListener('input', refreshPreview));
+  .forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', refreshPreview);
+    el.addEventListener('input', () => updateWhat3WordsLink(el.value));
+    el.addEventListener('focus', () => {
+      lastFocusedInput = el;
+      updateWhat3WordsLink(el.value);
+    });
+  });
+
+updateWhat3WordsLink('');
 </script>
 </body>
 </html>
