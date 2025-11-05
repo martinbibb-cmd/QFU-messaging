@@ -7,7 +7,7 @@
 <style>
   :root { --pad:14px; }
   html,body{background:#f6f7fb}
-  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:16px;max-width:980px}
+  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:16px;max-width:980px;font-size:14pt}
   h1{margin:0 0 12px}
   .card{border:1px solid #ddd;border-radius:12px;padding:var(--pad);margin:12px 0;background:#fff}
   label{display:block;font-weight:600;margin:10px 0 6px}
@@ -177,6 +177,30 @@ function basePre(s){
 function baseNorm(s){ return basePre(s).trim(); }
 function baseLines(s){ return basePre(s).split('\n'); }
 
+function applyCase(source, replacement){
+  if(source === source.toUpperCase()) return replacement.toUpperCase();
+  if(source === source.toLowerCase()) return replacement.toLowerCase();
+  if(source[0] === source[0].toUpperCase()){
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+  }
+  return replacement;
+}
+
+function replaceTerminology(value){
+  if(typeof value !== 'string') return value;
+  return value
+    .replace(/\bpros\b/gi, (match) => applyCase(match, 'strengths'))
+    .replace(/\bcons\b/gi, (match) => applyCase(match, 'limitations'));
+}
+
+function normaliseTerminologyInRecord(rec){
+  const out = {...rec};
+  for(const key of Object.keys(out)){
+    out[key] = replaceTerminology(out[key]);
+  }
+  return out;
+}
+
 const emailPlainRe  = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/ig;
 const urlPlainRe    = /https?:\/\/[^\s)>,]+/ig;
 const mobilePlainRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
@@ -264,7 +288,9 @@ function parseAll(){
 
   const clean = stripMarkdownLinks(basePre(md));
 
-  items = parseBlocks(clean).map(rec => ({...rec, smsDone:false, emailDone:false}));
+  items = parseBlocks(clean)
+    .map(normaliseTerminologyInRecord)
+    .map(rec => ({...rec, smsDone:false, emailDone:false}));
   if(!items.length){ alert('Could not parse any records.'); return; }
   idx=0;
   const templatesCard = document.getElementById('templates');
@@ -396,17 +422,17 @@ function setVal(id,v){ document.getElementById(id).value = v ?? ''; }
 function getVal(id){ return document.getElementById(id).value.trim(); }
 function current(){
   const timeOption = getTimeBasedOption();
-  return {
+  return normaliseTerminologyInRecord({
     lead:getVal('lead'), name:getVal('name'), pc:getVal('pc'), area:getVal('area'),
     amount:getVal('amount'), offer:getVal('offer'), offerEnds:getVal('offerEnds'),
     phone:getVal('phone1') || getVal('phone2'),
     email:getVal('email'), link:getVal('link'),
     hsa:getVal('hsa'), created:getVal('created'), stage:getVal('stage'), offerName:getVal('offerName'),
     sender:getVal('sender'), timeOption, timeBasedOption:timeOption
-  };
+  });
 }
 function fillTpl(tpl, rec){
-  return (tpl||'')
+  const filled = (tpl||'')
     .replace(/{{\s*lead\s*}}/gi, rec.lead||'')
     .replace(/{{\s*name\s*}}/gi, rec.name||'')
     .replace(/{{\s*pc\s*}}/gi, rec.pc||'')
@@ -422,6 +448,7 @@ function fillTpl(tpl, rec){
     .replace(/{{\s*sender\s*}}/gi, rec.sender||'')
     .replace(/{{\s*time\s*based\s*option\s*}}/gi, rec.timeOption||'')
     .replace(/{{\s*timeBasedOption\s*}}/gi, rec.timeOption||'');
+  return replaceTerminology(filled);
 }
 function refreshPreview(){
   const rec = current();
