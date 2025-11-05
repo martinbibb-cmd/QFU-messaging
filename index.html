@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QFU Messaging • v2.4 (Markdown-safe)</title>
+<title>QFU Messaging • v2.5 (Markdown-safe)</title>
 <style>
 :root { --pad:14px; }
 html,body{background:#f6f7fb}
@@ -18,13 +18,20 @@ input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #c
 button{border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff;cursor:pointer}
 .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
 pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
+.preview.done{border-color:#9ad29a;background:#f3fff3}
+.status{margin-top:4px;display:inline-block}
+.status.record-done{color:#0b7a0b;font-weight:600}
+.hidden{display:none}
+table{border-collapse:collapse;width:100%;margin-top:10px}
+th,td{border:1px solid #eee;padding:8px;text-align:left}
+th{background:#fafafa;font-weight:600}
+tr.is-missing td{color:#a33}
 .tiny{font-size:12px;opacity:.8}
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-.preview.done{border-color:#9ad29a;background:#f3fff3}
 </style>
 </head>
 <body>
-<h1>QFU Messaging <span class="pill">v2.4</span></h1>
+<h1>QFU Messaging <span class="pill">v2.5</span></h1>
 
 <div class="card">
   <label for="blocks">Paste data (raw from Salesforce OR the Markdown version):</label>
@@ -40,13 +47,22 @@ pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;borde
 
   <div class="btns">
     <button id="btn-clean">Clean &amp; parse</button>
-    <span class="tiny" id="status"></span>
+    <span class="tiny status" id="status"></span>
   </div>
 </div>
 
 <div class="card">
   <label>Parsed output:</label>
   <pre id="output" class="preview"></pre>
+  <table id="summary" class="hidden">
+    <thead>
+      <tr>
+        <th scope="col">Field</th>
+        <th scope="col">Value</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 <script>
@@ -86,20 +102,60 @@ function processData(cleanText) {
   };
 
   // show something friendly
-  const out = [
-    "Heading: " + parsed.heading,
-    "Price: " + parsed.price,
-    "Product / Pack: " + parsed.product,
-    "Date: " + parsed.date,
-    "Phone: " + parsed.phone,
-    "Mobile: " + parsed.mobile,
-    "Email: " + parsed.email,
-    "Portal: " + parsed.portal
-  ].join("\n");
+  const fields = [
+    { key: "heading", label: "Heading" },
+    { key: "price", label: "Price" },
+    { key: "product", label: "Product / Pack" },
+    { key: "date", label: "Date" },
+    { key: "phone", label: "Phone" },
+    { key: "mobile", label: "Mobile" },
+    { key: "email", label: "Email" },
+    { key: "portal", label: "Portal" }
+  ];
+  const requiredKeys = new Set(["heading", "price", "product", "date", "email"]);
 
-  document.getElementById("output").textContent = out;
-  document.getElementById("output").classList.add("done");
-  document.getElementById("status").textContent = "Parsed " + lines.length + " line(s)";
+  const out = fields
+    .map(field => `${field.label}: ${parsed[field.key] || ""}`)
+    .join("\n");
+
+  const outputEl = document.getElementById("output");
+  const summaryTable = document.getElementById("summary");
+  const tbody = summaryTable.querySelector("tbody");
+
+  outputEl.textContent = out || "Paste data above to see parsed fields.";
+  outputEl.classList.toggle("done", lines.length > 0);
+
+  tbody.innerHTML = "";
+  let missing = [];
+  fields.forEach(({ key, label }) => {
+    const value = parsed[key];
+    const row = document.createElement("tr");
+    if (!value && requiredKeys.has(key)) {
+      row.classList.add("is-missing");
+      missing.push(label);
+    }
+
+    const fieldCell = document.createElement("th");
+    fieldCell.setAttribute("scope", "row");
+    fieldCell.textContent = label;
+
+    const valueCell = document.createElement("td");
+    valueCell.textContent = value || "";
+
+    row.appendChild(fieldCell);
+    row.appendChild(valueCell);
+    tbody.appendChild(row);
+  });
+
+  summaryTable.classList.toggle("hidden", lines.length === 0);
+
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = lines.length
+    ? missing.length === 0
+      ? `Parsed ${lines.length} line(s) • all key fields found`
+      : `Parsed ${lines.length} line(s) • missing: ${missing.join(", ")}`
+    : "";
+  statusEl.classList.toggle("record-done", lines.length > 0 && missing.length === 0);
 }
 
 document.getElementById("btn-clean").addEventListener("click", () => {
