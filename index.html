@@ -53,7 +53,7 @@ tr.is-missing td{color:#a33}
 
 <div class="card">
   <label>Parsed output:</label>
-  <pre id="output" class="preview"></pre>
+  <pre id="output" class="preview">Paste data above to see parsed fields.</pre>
   <table id="summary" class="hidden">
     <thead>
       <tr>
@@ -72,7 +72,7 @@ function normaliseIncoming(text) {
   let t = text;
 
   // unify newlines
-  t = t.replace(/\r\n/g, "\n");
+  t = t.replace(/\r\n?/g, "\n");
 
   // strip markdown links: [any text](any url) -> text
   t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
@@ -86,37 +86,144 @@ function normaliseIncoming(text) {
   return t;
 }
 
-// 2. your existing parser logic goes here
+function unique(items, normaliser) {
+  const seen = new Set();
+  const results = [];
+  items.forEach((item) => {
+    const key = normaliser(item);
+    if (!key) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push(item);
+  });
+  return results;
+}
+
+function normalisePhoneForCompare(text) {
+  const digits = text.replace(/[^+\d]/g, "").replace(/^0+/, "0");
+  return digits.length >= 10 ? digits : "";
+}
+
+// 2. existing parser logic with markdown-safe cleaning
 function processData(cleanText) {
-  // this is a simple example based on the pattern you showed
-  const lines = cleanText.split("\n").map(l => l.trim()).filter(Boolean);
+  const rawLines = cleanText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const lines = rawLines.filter((line) => !/^[-–—•]+$/.test(line));
+
   const parsed = {
-    heading: lines[0] || "",
-    price: lines.find(l => l.startsWith("£")) || "",
-    product: lines.find(l => /^[A-Z0-9]{5,}$/.test(l)) || "",
-    date: lines.find(l => /\d{2}\/\d{2}\/\d{4}/.test(l)) || "",
-    phone: lines.find(l => /^0\d{9,}$/.test(l.replace(/\s+/g,""))) || "",
-    mobile: lines.find(l => /^\+?\d{10,}$/.test(l.replace(/\s+/g,""))) || "",
-    email: lines.find(l => /@/.test(l)) || "",
-    portal: lines.find(l => /^https?:\/\//.test(l)) || ""
+    heading: "",
+    lead: "",
+    name: "",
+    postcode: "",
+    product: "",
+    price: "",
+    offer: "",
+    date: "",
+    phone: "",
+    mobile: "",
+    email: "",
+    portal: ""
   };
 
-  // show something friendly
+  if (lines.length) {
+    const headingLine = lines[0];
+    parsed.heading = headingLine;
+
+    const productMatch = headingLine.match(/\(([^)]+)\)/);
+    if (productMatch) {
+      parsed.product = productMatch[1].trim();
+    }
+
+    const headingWithoutProduct = headingLine.replace(/\s*\([^)]+\)/, "").trim();
+    const headerParts = headingWithoutProduct
+      .split(/\s+-\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (headerParts.length) {
+      const leadMatch = headerParts[0].match(/\b\d[\dA-Z-]*\b/);
+      parsed.lead = leadMatch ? leadMatch[0] : headerParts[0];
+    }
+    if (headerParts.length > 1) {
+      parsed.name = headerParts[1];
+    }
+    if (headerParts.length > 2) {
+      parsed.postcode = headerParts[2];
+    }
+  }
+
+  const priceLine = lines.find((line) => /£\s?\d/.test(line));
+  if (priceLine) {
+    const priceMatch = priceLine.match(/£\s?[\d,.]+/);
+    parsed.price = priceMatch ? priceMatch[0].replace(/\s+/g, "") : priceLine;
+  }
+
+  const offerLine = lines.find((line) => /^[A-Z0-9]{4,}$/i.test(line.replace(/\s+/g, "")) && !/@/.test(line));
+  if (offerLine) {
+    parsed.offer = offerLine.replace(/\s+/g, "");
+  }
+
+  const dateLine = lines.find((line) => /\b\d{2}[\/\-]\d{2}[\/\-]\d{4}\b/.test(line));
+  if (dateLine) {
+    const dateMatch = dateLine.match(/\b\d{2}[\/\-]\d{2}[\/\-]\d{4}\b/);
+    parsed.date = dateMatch ? dateMatch[0].replace(/-/g, "/") : dateLine;
+  }
+
+  const phoneCandidates = lines.filter((line) => {
+    if (/£/.test(line) || /@/.test(line) || /https?:\/\//i.test(line)) return false;
+    if (/\b\d{2}[\/\-]\d{2}[\/\-]\d{4}\b/.test(line)) return false;
+    const digits = line.replace(/\D/g, "");
+    return digits.length >= 10 && digits.length <= 13 && /^[+0]/.test(line.replace(/\s+/g, ""));
+  });
+
+  const uniquePhones = unique(phoneCandidates, normalisePhoneForCompare);
+  if (uniquePhones.length) {
+    const localPhone = uniquePhones.find((line) => line.replace(/\s+/g, "").startsWith("0"));
+    const intlPhone = uniquePhones.find((line) => line.replace(/\s+/g, "").startsWith("+"));
+
+    parsed.phone = localPhone || uniquePhones[0] || "";
+    parsed.mobile = intlPhone || uniquePhones.find((line) => line !== parsed.phone) || "";
+
+    if (parsed.phone && parsed.mobile && parsed.phone === parsed.mobile) {
+      parsed.mobile = uniquePhones.find((line) => line !== parsed.phone) || "";
+    }
+  }
+
+  const emailLine = lines.find((line) => /@/.test(line));
+  if (emailLine) {
+    const emailMatch = emailLine.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    parsed.email = emailMatch ? emailMatch[0] : emailLine;
+  }
+
+  const portalLine = lines.find((line) => /https?:\/\//i.test(line));
+  if (portalLine) {
+    const portalMatch = portalLine.match(/https?:\/\/\S+/i);
+    parsed.portal = portalMatch ? portalMatch[0].replace(/[)>]+$/, "") : portalLine;
+  }
+
   const fields = [
     { key: "heading", label: "Heading" },
-    { key: "price", label: "Price" },
+    { key: "lead", label: "Lead ID" },
+    { key: "name", label: "Name" },
+    { key: "postcode", label: "Postcode" },
     { key: "product", label: "Product / Pack" },
-    { key: "date", label: "Date" },
-    { key: "phone", label: "Phone" },
-    { key: "mobile", label: "Mobile" },
+    { key: "price", label: "Price" },
+    { key: "offer", label: "Offer Code" },
+    { key: "date", label: "Proposed Date" },
+    { key: "phone", label: "Primary Phone" },
+    { key: "mobile", label: "Secondary Phone" },
     { key: "email", label: "Email" },
-    { key: "portal", label: "Portal" }
+    { key: "portal", label: "Portal Link" }
   ];
-  const requiredKeys = new Set(["heading", "price", "product", "date", "email"]);
+
+  const requiredKeys = new Set(["lead", "name", "price", "offer", "date", "email", "portal"]);
 
   const out = fields
-    .map(field => `${field.label}: ${parsed[field.key] || ""}`)
-    .join("\n");
+    .map((field) => `${field.label}: ${parsed[field.key] || ""}`)
+    .join("\n")
+    .trim();
 
   const outputEl = document.getElementById("output");
   const summaryTable = document.getElementById("summary");
@@ -126,7 +233,7 @@ function processData(cleanText) {
   outputEl.classList.toggle("done", lines.length > 0);
 
   tbody.innerHTML = "";
-  let missing = [];
+  const missing = [];
   fields.forEach(({ key, label }) => {
     const value = parsed[key];
     const row = document.createElement("tr");
@@ -162,12 +269,12 @@ document.getElementById("btn-clean").addEventListener("click", () => {
   const ta = document.getElementById("blocks");
   const raw = ta.value;
   const clean = normaliseIncoming(raw);
-  ta.value = clean;           // show the cleaned version
+  ta.value = clean; // show the cleaned version
   processData(clean);
 });
 
 // bonus: if user pastes, auto-clean once
-document.getElementById("blocks").addEventListener("paste", (evt) => {
+document.getElementById("blocks").addEventListener("paste", () => {
   // give iOS/Safari time to actually insert the text
   setTimeout(() => {
     const ta = document.getElementById("blocks");
