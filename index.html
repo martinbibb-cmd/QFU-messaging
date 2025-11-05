@@ -188,7 +188,13 @@ function applyCase(source, replacement){
 
 function replaceTerminology(value){
   if(typeof value !== 'string') return value;
+  const optionHeadingRe = /(Option\s+[AB]\b\s*(?:[-:–—]\s*)?)(Pros|Cons)\b/gi;
   return value
+    .replace(optionHeadingRe, (match, prefix, term) => {
+      const lower = term.toLowerCase();
+      const replacement = lower === 'pros' ? 'strengths' : 'limitations';
+      return prefix + applyCase(term, replacement);
+    })
     .replace(/\bpros\b/gi, (match) => applyCase(match, 'strengths'))
     .replace(/\bcons\b/gi, (match) => applyCase(match, 'limitations'));
 }
