@@ -3,34 +3,70 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QFU Messaging • v2.3 (Markdown-safe)</title>
+<title>QFU Messaging • v2.4 (Enhanced)</title>
 <style>
-  :root { --pad:14px; }
-  html,body{background:#f6f7fb}
-  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:16px;max-width:980px}
-  h1{margin:0 0 12px}
-  .card{border:1px solid #ddd;border-radius:12px;padding:var(--pad);margin:12px 0;background:#fff}
-  label{display:block;font-weight:600;margin:10px 0 6px}
-  input,textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;background:#fff}
-  .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
-  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
-  .btns input{flex:1;min-width:200px;padding:10px 12px;border:1px solid #ccc;border-radius:999px}
-  button{border:1px solid #ccc;border-radius:999px;padding:10px 14px;background:#fff;cursor:pointer}
-  .pill{font-size:12px;background:#eef;border-radius:999px;padding:4px 8px;margin-left:6px}
-  pre.preview{white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;border-radius:10px;padding:12px;margin:6px 0}
-  table{border-collapse:collapse;width:100%} th,td{border:1px solid #eee;padding:8px;text-align:left}
-  th{background:#fafafa}
-  .tiny{font-size:12px;opacity:.8}
-  #pos{opacity:.7;margin-top:8px}
+  :root {
+    --pad:14px;
+    --primary:#2563eb;
+    --primary-hover:#1d4ed8;
+    --success:#10b981;
+    --warning:#f59e0b;
+    --danger:#ef4444;
+    --gray-50:#f9fafb;
+    --gray-100:#f3f4f6;
+    --gray-200:#e5e7eb;
+    --gray-300:#d1d5db;
+    --gray-700:#374151;
+    --gray-900:#111827;
+  }
+  html,body{background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);min-height:100vh}
+  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:20px;max-width:1000px;margin:0 auto}
+  h1{margin:0 0 20px;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.1);font-size:28px}
+  .card{border:none;border-radius:16px;padding:24px;margin:16px 0;background:#fff;box-shadow:0 4px 6px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.06);transition:all 0.3s ease}
+  .card:hover{box-shadow:0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05)}
+  label{display:block;font-weight:600;margin:12px 0 8px;color:var(--gray-700);font-size:14px}
+  input,textarea{width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;background:#fff;transition:all 0.2s ease;font-size:14px}
+  input:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+  input.invalid{border-color:var(--danger);background:#fef2f2}
+  .row{display:flex;gap:14px;flex-wrap:wrap} .row>div{flex:1;min-width:220px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center}
+  .btns input{flex:1;min-width:200px}
+  button{border:2px solid var(--primary);border-radius:10px;padding:12px 20px;background:var(--primary);color:#fff;cursor:pointer;font-weight:600;font-size:14px;transition:all 0.2s ease;box-shadow:0 2px 4px rgba(37,99,235,0.2)}
+  button:hover{background:var(--primary-hover);border-color:var(--primary-hover);transform:translateY(-1px);box-shadow:0 4px 8px rgba(37,99,235,0.3)}
+  button:active{transform:translateY(0);box-shadow:0 2px 4px rgba(37,99,235,0.2)}
+  button.secondary{background:#fff;color:var(--primary);border-color:var(--gray-300)}
+  button.secondary:hover{background:var(--gray-50);border-color:var(--primary)}
+  button.success{background:var(--success);border-color:var(--success)}
+  button.success:hover{background:#059669;border-color:#059669}
+  button.danger{background:var(--danger);border-color:var(--danger)}
+  button.danger:hover{background:#dc2626;border-color:#dc2626}
+  .pill{font-size:13px;background:rgba(255,255,255,0.9);border-radius:999px;padding:6px 12px;margin-left:8px;font-weight:600;color:var(--primary)}
+  pre.preview{white-space:pre-wrap;background:var(--gray-50);border:2px solid var(--gray-200);border-radius:12px;padding:16px;margin:8px 0;font-size:14px;line-height:1.6;transition:all 0.2s ease}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid var(--gray-200);padding:10px;text-align:left}
+  th{background:var(--gray-100);font-weight:600;color:var(--gray-700)}
+  td{background:#fff}
+  .tiny{font-size:13px;opacity:.75;color:var(--gray-700);margin-top:8px}
+  #pos{opacity:.8;margin-top:12px;font-weight:600;color:var(--gray-700)}
   .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  .status{margin-top:4px}
-  .record-done{color:#0b7a0b;font-weight:600}
-  .preview.done{border-color:#9ad29a;background:#f3fff3}
-  tr.is-done td{background:#f6fff6}
+  .status{margin-top:8px;font-size:14px;font-weight:500}
+  .record-done{color:var(--success);font-weight:700}
+  .preview.done{border-color:var(--success);background:#f0fdf4;box-shadow:0 0 0 3px rgba(16,185,129,0.1)}
+  tr.is-done td{background:#f0fdf4}
+  .alert{padding:14px 18px;border-radius:10px;margin:12px 0;font-size:14px;font-weight:500}
+  .alert.success{background:#f0fdf4;color:#065f46;border:2px solid var(--success)}
+  .alert.error{background:#fef2f2;color:#991b1b;border:2px solid var(--danger)}
+  .alert.warning{background:#fffbeb;color:#92400e;border:2px solid var(--warning)}
+  .validation-msg{font-size:12px;color:var(--danger);margin-top:4px;font-weight:500}
+  .batch-controls{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .progress-bar{background:var(--gray-200);border-radius:999px;height:8px;overflow:hidden;margin:12px 0}
+  .progress-fill{background:linear-gradient(90deg, var(--primary), var(--success));height:100%;transition:width 0.3s ease}
+  h3{color:var(--gray-900);margin:0 0 16px;font-size:20px}
+  strong{color:var(--gray-900)}
 </style>
 </head>
 <body>
-<h1>QFU Messaging <span class="pill">v2.3</span></h1>
+<h1>QFU Messaging <span class="pill">v2.4</span></h1>
 
 <div class="card">
   <label>Paste data (raw from Salesforce or the Markdown version from your Shortcut):</label>
@@ -50,9 +86,10 @@ LO-xxxxx
 [5043… - Next Name - …](…)"></textarea>
   <div class="btns">
     <input id="sender" placeholder="Sender (e.g. Martin Bibb)" value="Martin Bibb" aria-label="Sender name">
-    <button onclick="parseAll()">Parse</button>
-    <button onclick="example()">Load Example</button>
+    <button onclick="parseAll()">🔍 Parse</button>
+    <button onclick="example()" class="secondary">📋 Load Example</button>
   </div>
+  <div id="parseMsg" style="display:none"></div>
   <div class="tiny">Parser auto-strips Markdown wrappers and fancy dashes before parsing.</div>
 </div>
 
@@ -137,20 +174,33 @@ Best regards,</textarea>
   </div>
 
   <div class="btns">
-    <button onclick="sendSMS()">Send SMS</button>
-    <button onclick="openMail()">Open Mail</button>
-    <button onclick="copyBoth()">Copy both messages</button>
-    <button onclick="prev()">◀︎ Prev</button>
-    <button onclick="next()">Next ▶︎</button>
-    <button onclick="previewAll()">Batch Preview</button>
+    <button onclick="sendSMS()">📱 Send SMS</button>
+    <button onclick="openMail()">📧 Send Email</button>
+    <button onclick="copyBoth()" class="secondary">📋 Copy Both</button>
+    <button onclick="prev()" class="secondary">◀ Prev</button>
+    <button onclick="next()" class="secondary">Next ▶</button>
+    <button onclick="previewAll()" class="secondary">📊 Batch Preview</button>
   </div>
   <div id="pos"></div>
   <div id="status" class="tiny status"></div>
 </div>
 
 <div id="batch" class="card" style="display:none">
-  <h3>Batch Preview (all records)</h3>
-  <div style="overflow:auto;max-height:420px">
+  <h3>📊 Batch Operations</h3>
+  <div class="batch-controls">
+    <button onclick="batchSendSMS()" class="success">📱 Send All SMS</button>
+    <button onclick="batchSendEmail()" class="success">📧 Send All Emails</button>
+    <button onclick="batchSendBoth()" class="success">🚀 Send All (SMS + Email)</button>
+    <button onclick="hideBatch()" class="secondary">✕ Close</button>
+  </div>
+  <div id="batchProgress" style="display:none">
+    <div class="progress-bar">
+      <div id="progressFill" class="progress-fill" style="width:0%"></div>
+    </div>
+    <div id="progressText" class="tiny" style="text-align:center"></div>
+  </div>
+  <div id="batchResult" style="display:none"></div>
+  <div style="overflow:auto;max-height:420px;margin-top:16px">
     <table id="batchTable"><thead>
       <tr>
         <th>#</th><th>Lead</th><th>Name</th><th>PC</th><th>Area</th>
@@ -296,26 +346,62 @@ function autoMarkdown(text){
   }
 }
 
+function showParseMsg(msg, type = 'success'){
+  const el = document.getElementById('parseMsg');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = `alert ${type}`;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
 function parseAll(){
   const ta = document.getElementById('blocks');
   const raw0 = ta ? ta.value : '';
-  if(!baseNorm(raw0)){ alert('Paste data first.'); return; }
+  if(!baseNorm(raw0)){
+    showParseMsg('⚠️ Please paste data first.', 'error');
+    return;
+  }
 
-  const prepared = autoMarkdown(raw0);
+  try {
+    const prepared = autoMarkdown(raw0);
+    const md = markdownify(prepared);
+    if(ta) ta.value = md;
 
-  const md = markdownify(prepared);
-  if(ta) ta.value = md;
+    const clean = stripMarkdownLinks(basePre(md));
+    items = parseBlocks(clean).map(rec => ({...rec, smsDone:false, emailDone:false}));
 
-  const clean = stripMarkdownLinks(basePre(md));
+    if(!items.length){
+      showParseMsg('❌ Could not parse any records. Please check the format.', 'error');
+      return;
+    }
 
-  items = parseBlocks(clean).map(rec => ({...rec, smsDone:false, emailDone:false}));
-  if(!items.length){ alert('Could not parse any records.'); return; }
-  idx=0;
-  const templatesCard = document.getElementById('templates');
-  if(templatesCard) templatesCard.style.display='none';
-  document.getElementById('work').style.display='block';
-  loadRecord();
-  buildBatchTable();
+    // Validate records
+    let warnings = [];
+    items.forEach((rec, i) => {
+      if(!rec.name) warnings.push(`Record ${i+1}: Missing name`);
+      if(!rec.email && !rec.phone1) warnings.push(`Record ${i+1}: Missing contact info`);
+      if(!rec.amount) warnings.push(`Record ${i+1}: Missing offer amount`);
+      if(!rec.offer) warnings.push(`Record ${i+1}: Missing offer code`);
+    });
+
+    idx=0;
+    const templatesCard = document.getElementById('templates');
+    if(templatesCard) templatesCard.style.display='none';
+    document.getElementById('work').style.display='block';
+    loadRecord();
+    buildBatchTable();
+
+    if(warnings.length > 0 && warnings.length <= 5) {
+      showParseMsg(`✅ Parsed ${items.length} record(s). Warnings: ${warnings.join('; ')}`, 'warning');
+    } else if(warnings.length > 5) {
+      showParseMsg(`✅ Parsed ${items.length} record(s) with ${warnings.length} warnings. Check records.`, 'warning');
+    } else {
+      showParseMsg(`✅ Successfully parsed ${items.length} record(s)!`, 'success');
+    }
+  } catch(err) {
+    showParseMsg(`❌ Parse error: ${err.message}`, 'error');
+  }
 }
 
 /* ========= Core parser (header split + positional fields) ========= */
@@ -547,7 +633,220 @@ async function copyBoth(){
   const subj = fillTpl(getVal('subjTpl'), rec);
   const body = fillTpl(getVal('bodyTpl'), rec);
   const txt = `SMS:\n${sms}\n\nEMAIL SUBJECT:\n${subj}\n\nEMAIL BODY:\n${body}`;
-  try{ await navigator.clipboard.writeText(txt); alert('Copied SMS + Email to clipboard.'); }catch{ alert('Copy failed (browser)'); }
+  try{ await navigator.clipboard.writeText(txt); alert('✅ Copied SMS + Email to clipboard.'); }catch{ alert('❌ Copy failed (browser)'); }
+}
+
+/* ========= Batch Operations ========= */
+function hideBatch(){
+  document.getElementById('batch').style.display = 'none';
+}
+
+function updateProgress(current, total, msg){
+  const progressBar = document.getElementById('batchProgress');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  if(!progressBar || !progressFill || !progressText) return;
+
+  progressBar.style.display = 'block';
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+  progressFill.style.width = `${percent}%`;
+  progressText.textContent = msg || `Processing ${current} of ${total}...`;
+}
+
+function showBatchResult(msg, type = 'success'){
+  const el = document.getElementById('batchResult');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = `alert ${type}`;
+  el.style.display = 'block';
+}
+
+async function batchSendSMS(){
+  if(!items.length) return;
+
+  const pending = items.filter(r => !r.smsDone && (r.phone1 || r.phone2));
+  if(!pending.length){
+    showBatchResult('ℹ️ All SMS messages already sent or no phone numbers available.', 'warning');
+    return;
+  }
+
+  if(!confirm(`Send SMS to ${pending.length} contact(s)? This will open your SMS app for each message.`)) return;
+
+  updateProgress(0, pending.length, 'Starting batch SMS...');
+
+  let sent = 0;
+  for(let i = 0; i < pending.length; i++){
+    const rec = pending[i];
+    const recordIdx = items.indexOf(rec);
+
+    // Load this record
+    idx = recordIdx;
+    loadRecord();
+
+    updateProgress(i + 1, pending.length, `Sending SMS ${i + 1} of ${pending.length}...`);
+
+    // Send SMS
+    const recData = {
+      ...rec,
+      sender: getVal('sender'),
+      timeOption: getTimeBasedOption(),
+      timeBasedOption: getTimeBasedOption(),
+      phone: rec.phone1 || rec.phone2
+    };
+    const msg = fillTpl(getVal('smsTpl'), recData);
+    const number = (recData.phone||'').replace(/\s+/g,'');
+
+    if(number){
+      rec.smsDone = true;
+      sent++;
+      // Small delay between messages
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const base = `sms:${encodeURIComponent(number)}`;
+      window.open(`${base}&body=${encodeURIComponent(msg)}`, '_blank');
+    }
+  }
+
+  updateProgress(sent, pending.length, `✅ Sent ${sent} SMS message(s)!`);
+  showBatchResult(`✅ Batch SMS complete! Sent ${sent} message(s).`, 'success');
+  buildBatchTable();
+  loadRecord();
+}
+
+async function batchSendEmail(){
+  if(!items.length) return;
+
+  const pending = items.filter(r => !r.emailDone && r.email);
+  if(!pending.length){
+    showBatchResult('ℹ️ All emails already sent or no email addresses available.', 'warning');
+    return;
+  }
+
+  if(!confirm(`Send emails to ${pending.length} contact(s)? This will open your email client for each message.`)) return;
+
+  updateProgress(0, pending.length, 'Starting batch email...');
+
+  let sent = 0;
+  for(let i = 0; i < pending.length; i++){
+    const rec = pending[i];
+    const recordIdx = items.indexOf(rec);
+
+    // Load this record
+    idx = recordIdx;
+    loadRecord();
+
+    updateProgress(i + 1, pending.length, `Sending email ${i + 1} of ${pending.length}...`);
+
+    // Send email
+    const recData = {
+      ...rec,
+      sender: getVal('sender'),
+      timeOption: getTimeBasedOption(),
+      timeBasedOption: getTimeBasedOption(),
+      phone: rec.phone1 || rec.phone2
+    };
+    const subj = fillTpl(getVal('subjTpl'), recData);
+    const body = fillTpl(getVal('bodyTpl'), recData);
+    const to = recData.email ? encodeURIComponent(recData.email) : '';
+
+    if(to){
+      rec.emailDone = true;
+      sent++;
+      // Small delay between messages
+      await new Promise(resolve => setTimeout(resolve, 300));
+      window.open(`mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
+    }
+  }
+
+  updateProgress(sent, pending.length, `✅ Sent ${sent} email(s)!`);
+  showBatchResult(`✅ Batch email complete! Sent ${sent} message(s).`, 'success');
+  buildBatchTable();
+  loadRecord();
+}
+
+async function batchSendBoth(){
+  if(!items.length) return;
+
+  const pendingSMS = items.filter(r => !r.smsDone && (r.phone1 || r.phone2));
+  const pendingEmail = items.filter(r => !r.emailDone && r.email);
+  const total = pendingSMS.length + pendingEmail.length;
+
+  if(!total){
+    showBatchResult('ℹ️ All messages already sent.', 'warning');
+    return;
+  }
+
+  if(!confirm(`Send ${pendingSMS.length} SMS and ${pendingEmail.length} email(s)? This will open your messaging apps.`)) return;
+
+  let processed = 0;
+
+  // Send SMS first
+  if(pendingSMS.length > 0){
+    updateProgress(0, total, 'Sending SMS messages...');
+
+    for(let i = 0; i < pendingSMS.length; i++){
+      const rec = pendingSMS[i];
+      const recordIdx = items.indexOf(rec);
+      idx = recordIdx;
+      loadRecord();
+
+      const recData = {
+        ...rec,
+        sender: getVal('sender'),
+        timeOption: getTimeBasedOption(),
+        timeBasedOption: getTimeBasedOption(),
+        phone: rec.phone1 || rec.phone2
+      };
+      const msg = fillTpl(getVal('smsTpl'), recData);
+      const number = (recData.phone||'').replace(/\s+/g,'');
+
+      if(number){
+        rec.smsDone = true;
+        processed++;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const base = `sms:${encodeURIComponent(number)}`;
+        window.open(`${base}&body=${encodeURIComponent(msg)}`, '_blank');
+      }
+
+      updateProgress(processed, total, `Progress: ${processed} of ${total}...`);
+    }
+  }
+
+  // Then send emails
+  if(pendingEmail.length > 0){
+    updateProgress(processed, total, 'Sending emails...');
+
+    for(let i = 0; i < pendingEmail.length; i++){
+      const rec = pendingEmail[i];
+      const recordIdx = items.indexOf(rec);
+      idx = recordIdx;
+      loadRecord();
+
+      const recData = {
+        ...rec,
+        sender: getVal('sender'),
+        timeOption: getTimeBasedOption(),
+        timeBasedOption: getTimeBasedOption(),
+        phone: rec.phone1 || rec.phone2
+      };
+      const subj = fillTpl(getVal('subjTpl'), recData);
+      const body = fillTpl(getVal('bodyTpl'), recData);
+      const to = recData.email ? encodeURIComponent(recData.email) : '';
+
+      if(to){
+        rec.emailDone = true;
+        processed++;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        window.open(`mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`, '_blank');
+      }
+
+      updateProgress(processed, total, `Progress: ${processed} of ${total}...`);
+    }
+  }
+
+  updateProgress(processed, total, `✅ Complete! Sent ${processed} message(s)!`);
+  showBatchResult(`✅ Batch send complete! Sent ${pendingSMS.length} SMS and ${pendingEmail.length} email(s).`, 'success');
+  buildBatchTable();
+  loadRecord();
 }
 
 /* Live preview on edit */
