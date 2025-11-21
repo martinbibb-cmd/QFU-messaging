@@ -434,10 +434,10 @@ function parseTabSeparatedLine(line){
   // Skip lines with "Offer Description" or empty lines
   if(!line.trim() || line.includes('Offer Description')) return null;
 
-  const parts = line.split('\t').map(s => s.trim());
+  const parts = line.split('\t').map(s => s.trim()).filter(s => s); // Filter out empty parts from leading tabs
   if(parts.length < 9) return null; // Need at least header + 8 fields
 
-  // First part is the header: "50477539 - Dionne Johnson - BH23 2HS - (C3_01_155)"
+  // First non-empty part is the header: "50477539 - Dionne Johnson - BH23 2HS - (C3_01_155)"
   const headerStr = parts[0];
   const hm = headerStr.match(HEADER_RE);
   if(!hm) return null;
