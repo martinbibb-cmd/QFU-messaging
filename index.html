@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QFU Messaging • v2.4 (Enhanced)</title>
+<title>QFU Messaging • v2.5 (Tab-Separated Support)</title>
 <style>
   :root {
     --pad:14px;
@@ -66,7 +66,7 @@
 </style>
 </head>
 <body>
-<h1>QFU Messaging <span class="pill">v2.4</span></h1>
+<h1>QFU Messaging <span class="pill">v2.5</span></h1>
 
 <div class="card">
   <label>Paste data (raw from Salesforce or the Markdown version from your Shortcut):</label>
@@ -90,7 +90,7 @@ LO-xxxxx
     <button onclick="example()" class="secondary">📋 Load Example</button>
   </div>
   <div id="parseMsg" style="display:none"></div>
-  <div class="tiny">Parser auto-strips Markdown wrappers and fancy dashes before parsing.</div>
+  <div class="tiny">Parser supports both tab-separated (from spreadsheets) and line-by-line markdown formats.</div>
 </div>
 
 <div id="templates" class="card">
@@ -364,11 +364,23 @@ function parseAll(){
   }
 
   try {
-    const prepared = autoMarkdown(raw0);
-    const md = markdownify(prepared);
-    if(ta) ta.value = md;
+    // Check if data is tab-separated first
+    const normalized = basePre(raw0);
+    const isTabFormat = isTabSeparated(normalized);
 
-    const clean = stripMarkdownLinks(basePre(md));
+    let clean;
+    if(isTabFormat){
+      // For tab-separated data, just normalize without markdown conversion
+      clean = normalized;
+      if(ta) ta.value = clean;
+    } else {
+      // For regular format, apply markdown conversion
+      const prepared = autoMarkdown(raw0);
+      const md = markdownify(prepared);
+      if(ta) ta.value = md;
+      clean = stripMarkdownLinks(basePre(md));
+    }
+
     items = parseBlocks(clean).map(rec => ({...rec, smsDone:false, emailDone:false}));
 
     if(!items.length){
@@ -405,7 +417,63 @@ function parseAll(){
 }
 
 /* ========= Core parser (header split + positional fields) ========= */
+function isTabSeparated(text){
+  // Check if the text contains tab-separated data
+  const lines = text.split('\n').filter(l => l.trim() && !l.includes('Offer Description'));
+  if(lines.length === 0) return false;
+
+  // Count tabs in first non-empty line
+  const firstLine = lines[0];
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+
+  // If we have 8+ tabs and the header pattern appears before first tab, it's likely tab-separated
+  return tabCount >= 8 && /^\s*\d+\s*[-–—]\s*.+?\s*[-–—]\s*[A-Z0-9 ]{3,8}\s*[-–—]\s*\([^)]+\)\t/.test(firstLine);
+}
+
+function parseTabSeparatedLine(line){
+  // Skip lines with "Offer Description" or empty lines
+  if(!line.trim() || line.includes('Offer Description')) return null;
+
+  const parts = line.split('\t').map(s => s.trim());
+  if(parts.length < 9) return null; // Need at least header + 8 fields
+
+  // First part is the header: "50477539 - Dionne Johnson - BH23 2HS - (C3_01_155)"
+  const headerStr = parts[0];
+  const hm = headerStr.match(HEADER_RE);
+  if(!hm) return null;
+
+  const lead = hm[1].trim();
+  const name = hm[2].trim();
+  const pc = hm[3].trim();
+  const area = hm[4].trim();
+
+  // Remaining parts are the fields
+  const amount = pickAmount(parts[1]);
+  const offer = pickOffer(parts[2]);
+  const offerEnds = pickDate(parts[3]);
+  const phone1 = pickPhone(parts[4]);
+  const phone2 = pickPhone(parts[5]);
+  const email = pickEmail(parts[6]) || '';
+  const link = pickUrl(parts[7]) || '';
+  const hsa = parts[8] || '';
+  const created = pickDate(parts[9]) || '';
+  const stage = parts[10] || '';
+  const offerName = parts[11] || '';
+
+  return { lead, name, pc, area, amount, offer, offerEnds, phone1, phone2, email, link, hsa, created, stage, offerName };
+}
+
 function parseBlocks(text){
+  // Check if data is tab-separated
+  if(isTabSeparated(text)){
+    const lines = text.split('\n');
+    const records = lines
+      .map(parseTabSeparatedLine)
+      .filter(r => r !== null && validRec(r));
+    return records;
+  }
+
+  // Original parsing logic for line-by-line format
   const lines = _lines(text);
   const starts=[];
   for(let i=0;i<lines.length;i++){ if(HEADER_RE.test(lines[i])) starts.push(i); }
