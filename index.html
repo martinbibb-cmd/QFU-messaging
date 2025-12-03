@@ -674,6 +674,8 @@ function buildBatchTable(){
 function previewAll(){ buildBatchTable(); document.getElementById('batch').style.display = 'block'; }
 
 /* ========= Contact Validation ========= */
+const RESTRICTED_EMAIL_DOMAINS = ['centrica', 'britishgas'];
+
 function hasMobileNumber(){
   const phone1 = getVal('phone1');
   const phone2 = getVal('phone2');
@@ -683,8 +685,9 @@ function hasMobileNumber(){
 function isEmailValid(){
   const email = getVal('email').toLowerCase();
   if(!email) return false;
-  if(email.includes('centrica')) return false;
-  if(email.includes('britishgas')) return false;
+  for(const domain of RESTRICTED_EMAIL_DOMAINS){
+    if(email.includes(domain)) return false;
+  }
   return true;
 }
 
@@ -729,6 +732,7 @@ function markMessageDone(prop){
 }
 
 function sendSMS(){
+  if(!hasMobileNumber()) return;
   const rec = current();
   const msg = fillTpl(getVal('smsTpl'), rec);
   const number = (rec.phone||'').replace(/\s+/g,'');
@@ -737,6 +741,7 @@ function sendSMS(){
   location.href = `${base}&body=${encodeURIComponent(msg)}`;
 }
 function openMail(){
+  if(!isEmailValid()) return;
   const rec = current();
   const subj = fillTpl(getVal('subjTpl'), rec);
   const body = fillTpl(getVal('bodyTpl'), rec);
