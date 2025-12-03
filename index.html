@@ -40,8 +40,11 @@
   button.success:hover{background:#059669;border-color:#059669}
   button.danger{background:var(--danger);border-color:var(--danger)}
   button.danger:hover{background:#dc2626;border-color:#dc2626}
+  button:disabled{opacity:0.5;cursor:not-allowed;background:var(--gray-300);border-color:var(--gray-300);color:var(--gray-700)}
+  button:disabled:hover{transform:none;box-shadow:none;background:var(--gray-300);border-color:var(--gray-300)}
   .pill{font-size:13px;background:rgba(255,255,255,0.9);border-radius:999px;padding:6px 12px;margin-left:8px;font-weight:600;color:var(--primary)}
   pre.preview{white-space:pre-wrap;background:var(--gray-50);border:2px solid var(--gray-200);border-radius:12px;padding:16px;margin:8px 0;font-size:14px;line-height:1.6;transition:all 0.2s ease}
+  pre.preview.unavailable{border-color:var(--danger);background:#fef2f2}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{border:1px solid var(--gray-200);padding:10px;text-align:left}
   th{background:var(--gray-100);font-weight:600;color:var(--gray-700)}
@@ -596,6 +599,7 @@ function refreshPreview(){
   document.getElementById('smsPreview').textContent  = sms;
   document.getElementById('subjPreview').textContent = subj;
   document.getElementById('bodyPreview').textContent = body;
+  updateContactValidation();
 }
 
 function setDoneState(id, done){
@@ -668,6 +672,51 @@ function buildBatchTable(){
 }
 
 function previewAll(){ buildBatchTable(); document.getElementById('batch').style.display = 'block'; }
+
+/* ========= Contact Validation ========= */
+function hasMobileNumber(){
+  const phone1 = getVal('phone1');
+  const phone2 = getVal('phone2');
+  return !!(phone1 || phone2);
+}
+
+function isEmailValid(){
+  const email = getVal('email').toLowerCase();
+  if(!email) return false;
+  if(email.includes('centrica')) return false;
+  if(email.includes('britishgas')) return false;
+  return true;
+}
+
+function updateContactValidation(){
+  const smsBtn = document.querySelector('button[onclick="sendSMS()"]');
+  const emailBtn = document.querySelector('button[onclick="openMail()"]');
+  const smsPreview = document.getElementById('smsPreview');
+  const subjPreview = document.getElementById('subjPreview');
+  const bodyPreview = document.getElementById('bodyPreview');
+  
+  const mobileAvailable = hasMobileNumber();
+  const emailValid = isEmailValid();
+  
+  // Update SMS button and preview
+  if(smsBtn){
+    smsBtn.disabled = !mobileAvailable;
+  }
+  if(smsPreview){
+    smsPreview.classList.toggle('unavailable', !mobileAvailable);
+  }
+  
+  // Update Email button and previews
+  if(emailBtn){
+    emailBtn.disabled = !emailValid;
+  }
+  if(subjPreview){
+    subjPreview.classList.toggle('unavailable', !emailValid);
+  }
+  if(bodyPreview){
+    bodyPreview.classList.toggle('unavailable', !emailValid);
+  }
+}
 
 /* ========= Actions ========= */
 function markMessageDone(prop){
