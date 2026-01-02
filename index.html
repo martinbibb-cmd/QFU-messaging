@@ -66,6 +66,8 @@
   .progress-fill{background:linear-gradient(90deg, var(--primary), var(--success));height:100%;transition:width 0.3s ease}
   h3{color:var(--gray-900);margin:0 0 16px;font-size:20px}
   strong{color:var(--gray-900)}
+  #work.active-editing{border:3px solid var(--primary);box-shadow:0 0 0 4px rgba(37,99,235,0.15), 0 10px 15px rgba(0,0,0,0.1)}
+  #pos.active-editing{color:var(--primary);font-size:15px;font-weight:700}
 </style>
 </head>
 <body>
@@ -91,6 +93,7 @@ LO-xxxxx
     <input id="sender" placeholder="Sender (e.g. Martin Bibb)" value="Martin Bibb" aria-label="Sender name">
     <button onclick="parseAll()">🔍 Parse</button>
     <button onclick="example()" class="secondary">📋 Load Example</button>
+    <button onclick="clearAll()" class="danger">🗑️ Clear</button>
   </div>
   <div id="parseMsg" style="display:none"></div>
   <div class="tiny">Parser supports both tab-separated (from spreadsheets) and line-by-line markdown formats.</div>
@@ -269,6 +272,19 @@ const mobileRe = /\b(?:\+?\s*44\s*7\d{2}|0\s*7\d{2})\s*\d{3}\s*\d{4}\b/ig;
 /* ========= State ========= */
 let items=[], idx=0;
 
+/* ========= Clear State ========= */
+function clearAll() {
+  if(confirm("Clear all data and start over?")) {
+    document.getElementById('blocks').value = '';
+    items = [];
+    idx = 0;
+    document.getElementById('work').style.display = 'none';
+    document.getElementById('batch').style.display = 'none';
+    document.getElementById('templates').style.display = 'block';
+    showParseMsg('✅ Data cleared successfully.', 'success');
+  }
+}
+
 /* ========= Example ========= */
 function example(){
   document.getElementById('blocks').value =
@@ -398,6 +414,7 @@ function parseAll(){
       if(!rec.email && !rec.phone1) warnings.push(`Record ${i+1}: Missing contact info`);
       if(!rec.amount) warnings.push(`Record ${i+1}: Missing offer amount`);
       if(!rec.offer) warnings.push(`Record ${i+1}: Missing offer code`);
+      if(rec.offerEnds && isDateInPast(rec.offerEnds)) warnings.push(`Record ${i+1}: Offer expired (${rec.offerEnds})`);
     });
 
     idx=0;
@@ -477,7 +494,20 @@ function parseBlocks(text){
   }
 
   // Original parsing logic for line-by-line format
-  const lines = _lines(text);
+  // Filter out Salesforce grouping headers
+  const rawLines = _lines(text);
+  const lines = rawLines.filter(line => {
+    const l = line.trim();
+    // Skip empty lines and Salesforce group headers
+    return l !== '' &&
+           !l.includes('Offer Description:') &&
+           !l.includes('Commission SO HSA:') &&
+           !l.includes('HSA Follow Up:') &&
+           !/^Offer Description\s*:/.test(l) &&
+           !/^Commission SO HSA\s*:/.test(l) &&
+           !/^HSA Follow Up\s*:/.test(l);
+  });
+
   const starts=[];
   for(let i=0;i<lines.length;i++){ if(HEADER_RE.test(lines[i])) starts.push(i); }
   // fallback: blank-line blocks if no headers
@@ -540,6 +570,22 @@ function pickOffer(s){
   return v;
 }
 function pickDate(s){ const m=(s||'').match(dateRe); return m?m[0]: (s||''); }
+
+function isDateInPast(dateStr){
+  if(!dateStr) return false;
+  const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if(!match) return false;
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1; // JavaScript months are 0-indexed
+  const year = parseInt(match[3], 10);
+
+  const offerDate = new Date(year, month, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time to start of day
+
+  return offerDate < today;
+}
 function pickPhone(s){
   const raw=(s||'').toString().trim();
   if(!raw || raw==='-') return '';
@@ -649,6 +695,18 @@ function loadRecord(){
   setVal('hsa', d.hsa||''); setVal('created', d.created||''); setVal('stage', d.stage||''); setVal('offerName', d.offerName||'');
   refreshPreview();
   updateMeta();
+
+  // Add active-editing class to work card and position indicator
+  const workCard = document.getElementById('work');
+  const posEl = document.getElementById('pos');
+  if(workCard) workCard.classList.add('active-editing');
+  if(posEl) posEl.classList.add('active-editing');
+
+  // Remove after a short animation period
+  setTimeout(() => {
+    if(workCard) workCard.classList.remove('active-editing');
+    if(posEl) posEl.classList.remove('active-editing');
+  }, 800);
 }
 function next(){ if(idx < items.length-1){ idx++; loadRecord(); } }
 function prev(){ if(idx > 0){ idx--; loadRecord(); } }
@@ -697,10 +755,11 @@ function updateContactValidation(){
   const smsPreview = document.getElementById('smsPreview');
   const subjPreview = document.getElementById('subjPreview');
   const bodyPreview = document.getElementById('bodyPreview');
-  
+  const offerEndsInput = document.getElementById('offerEnds');
+
   const mobileAvailable = hasMobileNumber();
   const emailValid = isEmailValid();
-  
+
   // Update SMS button and preview
   if(smsBtn){
     smsBtn.disabled = !mobileAvailable;
@@ -708,7 +767,7 @@ function updateContactValidation(){
   if(smsPreview){
     smsPreview.classList.toggle('unavailable', !mobileAvailable);
   }
-  
+
   // Update Email button and previews
   if(emailBtn){
     emailBtn.disabled = !emailValid;
@@ -718,6 +777,13 @@ function updateContactValidation(){
   }
   if(bodyPreview){
     bodyPreview.classList.toggle('unavailable', !emailValid);
+  }
+
+  // Validate Offer Ends date
+  if(offerEndsInput){
+    const dateValue = offerEndsInput.value.trim();
+    const isPast = isDateInPast(dateValue);
+    offerEndsInput.classList.toggle('invalid', isPast);
   }
 }
 
